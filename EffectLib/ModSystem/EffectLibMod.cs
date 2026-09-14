@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Vintagestory.API.Client;
@@ -12,6 +13,7 @@ namespace EffectLib
     public class EffectLibMod : ModSystem
     {
         private const string HarmonyId = "llama3013.EffectLib";
+        private const string ConfigSyncChannelName = "effectlibconfigsync";
 
         private ICoreServerAPI sapi;
         private Harmony harmony;
@@ -72,6 +74,37 @@ namespace EffectLib
                 harmony = new Harmony(HarmonyId);
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
             }
+
+            CoatingPolicy.Init(api);
+            CombatOverhaulCompat.Init(api);
+
+            api.Network
+                .RegisterChannel(ConfigSyncChannelName)
+                .RegisterMessageType<EffectLibConfigSyncPacket>();
+        }
+
+        public override void AssetsFinalize(ICoreAPI api)
+        {
+            base.AssetsFinalize(api);
+
+            if (api.Side != EnumAppSide.Client)
+                return;
+
+            AttachCoatableBehaviors(api);
+        }
+
+        private static void AttachCoatableBehaviors(ICoreAPI api)
+        {
+            foreach (CollectibleObject obj in api.World.Collectibles)
+            {
+                if (obj?.Code == null || obj.CollectibleBehaviors.Any(b => b is CollectibleBehaviorCoatable))
+                    continue;
+
+                if (!CoatingPolicy.IsCoatableWeapon(obj) && !CoatingPolicy.IsCoatableProjectile(obj))
+                    continue;
+
+                obj.CollectibleBehaviors = [.. obj.CollectibleBehaviors, new CollectibleBehaviorCoatable(obj)];
+            }
         }
 
         public override void StartServerSide(ICoreServerAPI api)
@@ -83,13 +116,28 @@ namespace EffectLib
             api.Event.PlayerNowPlaying += OnPlayerReady;
             api.Event.PlayerDisconnect += OnPlayerDisconnect;
             api.Event.PlayerDeath += OnPlayerDeath;
+            api.Event.PlayerJoin += SendConfigSync;
 
             base.StartServerSide(api);
         }
 
+        private void SendConfigSync(IServerPlayer player) =>
+            sapi.Network
+                .GetChannel(ConfigSyncChannelName)
+                .SendPacket(EffectLibConfig.Loaded.ToSyncPacket(), player);
+
         public override void StartClientSide(ICoreClientAPI api)
         {
             base.StartClientSide(api);
+
+            api.Network
+                .GetChannel(ConfigSyncChannelName)
+                .SetMessageHandler<EffectLibConfigSyncPacket>(packet =>
+                {
+                    // Also invalidates CoatingPolicy's cached weapon tag set.
+                    EffectLibConfig.Loaded.ApplySyncPacket(packet);
+                    AttachCoatableBehaviors(api);
+                });
 
             api.Event.LevelFinalize += () =>
             {
@@ -117,13 +165,7 @@ namespace EffectLib
         private static void OnPlayerReady(IServerPlayer player)
         {
             EffectManager manager = EntityBehaviorPlayerEffects.ManagerFor(player?.Entity);
-            if (manager == null)
-                return;
-
-            if (EffectPolicy.IsAllowed(EffectCapability.RetainOnDisconnect))
-                manager.RestoreEffects();
-            else
-                manager.ResetAll();
+            manager?.RestoreEffects();
         }
 
         private static void OnPlayerDisconnect(IServerPlayer player)
@@ -132,14 +174,7 @@ namespace EffectLib
             if (entity?.Properties == null || !entity.HasBehavior<EntityBehaviorPlayerEffects>())
                 return;
 
-            EffectManager manager = entity.GetBehavior<EntityBehaviorPlayerEffects>()?.Manager;
-            if (manager == null)
-                return;
-
-            if (EffectPolicy.IsAllowed(EffectCapability.RetainOnDisconnect))
-                manager.Suspend();
-            else
-                manager.ResetAll();
+            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.Manager?.Suspend();
         }
 
         private static void OnPlayerDeath(IServerPlayer player, DamageSource damageSource)
@@ -158,11 +193,14 @@ namespace EffectLib
                 sapi.Event.PlayerNowPlaying -= OnPlayerReady;
                 sapi.Event.PlayerDisconnect -= OnPlayerDisconnect;
                 sapi.Event.PlayerDeath -= OnPlayerDeath;
+                sapi.Event.PlayerJoin -= SendConfigSync;
                 sapi = null;
             }
 
             harmony?.UnpatchAll(HarmonyId);
             harmony = null;
+
+            CombatOverhaulCompat.Shutdown();
 
             base.Dispose();
         }

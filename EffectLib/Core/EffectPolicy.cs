@@ -12,8 +12,6 @@ namespace EffectLib
 
         public const string Refresh = "refresh";
 
-        public const string RetainOnDisconnect = "retainOnDisconnect";
-
         public const string Resize = "resize";
     }
 
@@ -27,7 +25,7 @@ namespace EffectLib
         {
             Func<string, bool> allow = gate;
             if (allow == null)
-                return true;
+                return DefaultIsAllowed(capability);
 
             try
             {
@@ -38,5 +36,16 @@ namespace EffectLib
                 return true;
             }
         }
+
+        private static bool DefaultIsAllowed(string capability) =>
+            capability switch
+            {
+                EffectCapability.Fly => EffectLibConfig.Loaded.AllowFly,
+                EffectCapability.Climb => EffectLibConfig.Loaded.AllowClimb,
+                EffectCapability.Fall => EffectLibConfig.Loaded.AllowFall,
+                EffectCapability.Refresh => EffectLibConfig.Loaded.AllowRefresh,
+                EffectCapability.Resize => EffectLibConfig.Loaded.AllowResize,
+                _ => true,
+            };
     }
 }

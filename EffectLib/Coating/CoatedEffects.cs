@@ -37,11 +37,19 @@ namespace EffectLib
         )
         {
             if (
-                CoatingPolicy.CombatOverhaulManagesWeapon(stack.Collectible)
-                && CoatingPolicy.ReadCombatOverhaulCoat(stack) is { } alt
+                CombatOverhaulCompat.ShouldUseBuffStorage(stack.Collectible)
+                && CombatOverhaulCompat.TryGetCoating(
+                    stack,
+                    out string coEffectId,
+                    out _,
+                    out float coMultiplier,
+                    out int coCharges
+                )
             )
             {
-                (effectId, _, multiplier, charges) = alt;
+                effectId = coEffectId;
+                multiplier = coMultiplier;
+                charges = coCharges;
                 return;
             }
 
@@ -59,9 +67,9 @@ namespace EffectLib
             int charges
         )
         {
-            if (CoatingPolicy.CombatOverhaulManagesWeapon(slot.Itemstack.Collectible))
+            if (CombatOverhaulCompat.ShouldUseBuffStorage(slot.Itemstack.Collectible))
             {
-                CoatingPolicy.WriteCombatOverhaulWeaponCoat(slot, effectId, itemCode, multiplier, charges);
+                CombatOverhaulCompat.SetCoating(slot, effectId, itemCode, multiplier, charges);
                 return;
             }
 
@@ -75,8 +83,8 @@ namespace EffectLib
 
         public static bool HasProjectileCoat(ItemStack stack)
         {
-            return CoatingPolicy.CombatOverhaulManagesProjectile(stack)
-                ? CoatingPolicy.ReadCombatOverhaulCoat(stack) != null
+            return CombatOverhaulCompat.ShouldUseProjectileBuffStorage(stack)
+                ? CombatOverhaulCompat.TryGetCoating(stack, out _, out _, out _, out _)
                 : !string.IsNullOrEmpty(stack.Attributes.GetString(KeyEffectId));
         }
 
@@ -87,9 +95,9 @@ namespace EffectLib
             float multiplier
         )
         {
-            if (CoatingPolicy.CombatOverhaulManagesProjectile(stack))
+            if (CombatOverhaulCompat.ShouldUseProjectileBuffStorage(stack))
             {
-                CoatingPolicy.WriteCombatOverhaulProjectileCoat(stack, effectId, itemCode, multiplier);
+                CombatOverhaulCompat.SetProjectileCoating(stack, effectId, itemCode, multiplier);
                 return;
             }
 

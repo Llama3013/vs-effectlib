@@ -35,6 +35,10 @@
       <HintPath>$(VINTAGE_STORY)/Lib/0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="protobuf-net">
+      <HintPath>$(VINTAGE_STORY)/Lib/protobuf-net.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="VintagestoryLib">
       <HintPath>$(VINTAGE_STORY)/VintagestoryLib.dll</HintPath>
       <Private>false</Private>
@@ -43,6 +47,12 @@
       <HintPath>$(VINTAGE_STORY)/Lib/cairo-sharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EffectLibCombatOverhaulCompat\EffectLibCombatOverhaulCompat.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="EmbeddedResource" />
   </ItemGroup>
 
   <ItemGroup>

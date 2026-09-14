@@ -7,6 +7,10 @@ using Vintagestory.API.Datastructures;
 namespace EffectLib
 #pragma warning restore IDE0130
 {
+    /// <summary>
+    /// This behaviour should be attached to tools or items that should be able to be coated with an effect,
+    /// for example a sword or arrow. It is a "coatable" version of the <see cref="CollectibleBehaviorEffectItem"/> behavior.
+    /// </summary>
     public class CollectibleBehaviorCoatable(CollectibleObject collObj) : CollectibleBehavior(collObj)
     {
         public override void GetHeldItemInfo(

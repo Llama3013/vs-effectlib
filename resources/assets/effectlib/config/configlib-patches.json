@@ -25,6 +25,59 @@
           "max": 50.0
         }
       }
+    },
+    "string": {
+      "COATABLEWEAPONTAGS": {
+        "name": "CoatableWeaponTags",
+        "ingui": "effectlib:CoatableWeaponTags",
+        "weight": 1.3,
+        "comment": "effectlib:CoatableWeaponTags-Comment",
+        "default": "weapon-melee"
+      },
+      "COATABLEPROJECTILESCODES": {
+        "name": "CoatableProjectilesCodes",
+        "ingui": "effectlib:CoatableProjectilesCodes",
+        "weight": 1.4,
+        "comment": "effectlib:CoatableProjectilesCodes-Comment",
+        "default": "*arrow*"
+      }
+    },
+    "boolean": {
+      "ALLOWFLY": {
+        "name": "AllowFly",
+        "ingui": "effectlib:AllowFly",
+        "weight": 1.5,
+        "comment": "effectlib:AllowFly-Comment",
+        "default": true
+      },
+      "ALLOWCLIMB": {
+        "name": "AllowClimb",
+        "ingui": "effectlib:AllowClimb",
+        "weight": 1.6,
+        "comment": "effectlib:AllowClimb-Comment",
+        "default": true
+      },
+      "ALLOWFALL": {
+        "name": "AllowFall",
+        "ingui": "effectlib:AllowFall",
+        "weight": 1.7,
+        "comment": "effectlib:AllowFall-Comment",
+        "default": true
+      },
+      "ALLOWREFRESH": {
+        "name": "AllowRefresh",
+        "ingui": "effectlib:AllowRefresh",
+        "weight": 1.8,
+        "comment": "effectlib:AllowRefresh-Comment",
+        "default": true
+      },
+      "ALLOWRESIZE": {
+        "name": "AllowResize",
+        "ingui": "effectlib:AllowResize",
+        "weight": 1.9,
+        "comment": "effectlib:AllowResize-Comment",
+        "default": true
+      }
     }
   }
 }

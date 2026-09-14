@@ -12,12 +12,7 @@
   "effect-size-at-max": "You cannot grow any further with this effect",
   "effect-size-at-min": "You cannot shrink any further with this effect",
 
-  "MinPlayerHeight": "Minimum player height",
-  "MinPlayerHeight-Comment": "Hard floor for any effect that shrinks a player, in blocks. No effect can shrink a player below this, even if its own settings ask for less.",
-  "MaxPlayerHeight": "Maximum player height",
-  "MaxPlayerHeight-Comment": "Hard ceiling for any effect that grows a player, in blocks. No effect can grow a player past this, even if its own settings ask for more.",
   "effect-gain": "You feel the effects of the {0}",
-
   "weapon-coated": "Weapon coated with {0} ({1} charges remaining)",
   "arrow-coated": "Arrow coated with {0}",
   "coating-not-allowed": "This cannot be used for coating",
@@ -80,5 +75,25 @@
   "armorDurabilityLoss": "Armor durability loss",
   "bowDrawingStrength": "Bow drawing strength",
   "wholeVesselLootChance": "Whole vessel loot chance",
-  "temporalGearTLRepairCost": "Temporal gear repair cost"
+  "temporalGearTLRepairCost": "Temporal gear repair cost",
+
+  "MinPlayerHeight": "Minimum player height",
+  "MinPlayerHeight-Comment": "Hard floor for any effect that shrinks a player, in blocks. No effect can shrink a player below this, even if its own settings ask for less.",
+  "MaxPlayerHeight": "Maximum player height",
+  "MaxPlayerHeight-Comment": "Hard ceiling for any effect that grows a player, in blocks. No effect can grow a player past this, even if its own settings ask for more.",
+  "CoatableWeaponTags": "Coatable weapon tags",
+  "CoatableWeaponTags-Comment": "Comma-separated VS item tags for weapons that can be coated with effects. \"weapon-melee\" is the default, meaning every vanilla weapon and every modded weapon with that tag can be coated. Replace it with something like \"weapon-sword, tool-cleaver\" to only allow specific tags. Requires valid tags to work.",
+  "CoatableProjectilesCodes": "Coatable projectile codes",
+  "CoatableProjectilesCodes-Comment": "Comma-separated wildcard item codes for projectiles that can be coated with effects. \"*arrow*\" is the default, matching every vanilla and modded arrow. Patterns are matched against the full item code (domain:path), e.g. \"game:arrow-*, mymod:bolt-*\". Leave empty to disable projectile coating entirely.",
+
+  "AllowFly": "Allow flight effects",
+  "AllowFly-Comment": "Globally allows or blocks any effect that grants flight, regardless of what the effect's own JSON asks for.",
+  "AllowClimb": "Allow climbing effects",
+  "AllowClimb-Comment": "Globally allows or blocks any effect that grants climb-anywhere, regardless of what the effect's own JSON asks for.",
+  "AllowFall": "Allow fall protection effects",
+  "AllowFall-Comment": "Globally allows or blocks any effect that grants fall damage protection, regardless of what the effect's own JSON asks for.",
+  "AllowRefresh": "Allow effect refreshing",
+  "AllowRefresh-Comment": "Globally allows or blocks re-applying (refreshing) an already-active effect for any effect that doesn't set its own replaceIfActive. An effect with replaceIfActive set always refreshes regardless of this setting.",
+  "AllowResize": "Allow size-changing effects",
+  "AllowResize-Comment": "Globally allows or blocks any effect that grows or shrinks a player, regardless of what the effect's own JSON asks for."
 }

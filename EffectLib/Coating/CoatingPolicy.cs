@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Datastructures;
+using Vintagestory.API.Util;
 
 #pragma warning disable IDE0130
 namespace EffectLib
@@ -32,24 +35,20 @@ namespace EffectLib
         public System.Func<float> BarrelConsumeLitres { get; init; }
 
         public System.Func<float> BarrelCheckLitres { get; init; }
-
-        public System.Func<CollectibleObject, bool> CombatOverhaulManagesWeapon { get; init; }
-        public System.Func<ItemStack, bool> CombatOverhaulManagesProjectile { get; init; }
-
-        public System.Func<
-            ItemStack,
-            (string EffectId, string ItemCode, float Multiplier, int Charges)?
-        > ReadCombatOverhaulCoat { get; init; }
-
-        public Action<ItemSlot, string, string, float, int> WriteCombatOverhaulWeaponCoat { get; init; }
-        public Action<ItemStack, string, string, float> WriteCombatOverhaulProjectileCoat { get; init; }
     }
 
     public static class CoatingPolicy
     {
         private static CoatingConfig config = new();
+        private static ICoreAPI api;
+        private static TagSet coatableWeaponTagSet;
+        private static bool coatableWeaponTagSetBuilt;
 
         public static void Configure(CoatingConfig hooks) => config = hooks ?? new();
+
+        public static void Init(ICoreAPI coreApi) => api = coreApi;
+
+        public static void InvalidateCaches() => coatableWeaponTagSetBuilt = false;
 
         public static bool AllowCoating() => config.AllowCoating?.Invoke() ?? true;
 
@@ -58,10 +57,10 @@ namespace EffectLib
         public static float EffectMultiplier() => config.EffectMultiplier?.Invoke() ?? 1f;
 
         public static bool IsCoatableWeapon(CollectibleObject col) =>
-            config.IsCoatableWeapon?.Invoke(col) ?? false;
+            config.IsCoatableWeapon?.Invoke(col) ?? DefaultIsCoatableWeapon(col);
 
         public static bool IsCoatableProjectile(CollectibleObject col) =>
-            config.IsCoatableProjectile?.Invoke(col) ?? false;
+            config.IsCoatableProjectile?.Invoke(col) ?? DefaultIsCoatableProjectile(col);
 
         public static bool IsEffectCoatable(string effectId) =>
             config.IsEffectCoatable?.Invoke(effectId) ?? true;
@@ -81,30 +80,46 @@ namespace EffectLib
         public static string GetBlockReason(string effectId, EntityPlayer player, EffectContext ctx) =>
             config.GetBlockReason?.Invoke(effectId, player, ctx);
 
-        public static bool CombatOverhaulManagesWeapon(CollectibleObject col) =>
-            config.CombatOverhaulManagesWeapon?.Invoke(col) ?? false;
+        // Weapons are matched by vanilla item/block tags
+        // (default "weapon-melee"), since arrows have no reliable tag as of 
+        // VS 1.22.7 they're matched by wildcard item code instead (default "*arrow*").
+        private static bool DefaultIsCoatableWeapon(CollectibleObject col) =>
+            col?.Tags != null
+            && TryGetCoatableWeaponTagSet(out TagSet tagSet)
+            && col.Tags.Overlaps(tagSet);
 
-        public static bool CombatOverhaulManagesProjectile(ItemStack stack) =>
-            config.CombatOverhaulManagesProjectile?.Invoke(stack) ?? false;
+        private static bool TryGetCoatableWeaponTagSet(out TagSet tagSet)
+        {
+            if (!coatableWeaponTagSetBuilt && api != null)
+            {
+                List<string> tagList =
+                [
+                    .. EffectLibConfig.Loaded.CoatableWeaponTags
+                        .Split(',')
+                        .Select(t => t.Trim())
+                        .Where(t => t.Length > 0),
+                ];
+                api.CollectibleTagRegistry.TryCreateTagSet(out coatableWeaponTagSet, tagList);
+                coatableWeaponTagSetBuilt = true;
+            }
+            tagSet = coatableWeaponTagSet;
+            return coatableWeaponTagSetBuilt;
+        }
 
-        public static (string EffectId, string ItemCode, float Multiplier, int Charges)? ReadCombatOverhaulCoat(
-            ItemStack stack
-        ) => config.ReadCombatOverhaulCoat?.Invoke(stack);
+        private static bool DefaultIsCoatableProjectile(CollectibleObject col)
+        {
+            if (col?.Code == null)
+                return false;
 
-        public static void WriteCombatOverhaulWeaponCoat(
-            ItemSlot slot,
-            string effectId,
-            string itemCode,
-            float multiplier,
-            int charges
-        ) => config.WriteCombatOverhaulWeaponCoat?.Invoke(slot, effectId, itemCode, multiplier, charges);
-
-        public static void WriteCombatOverhaulProjectileCoat(
-            ItemStack stack,
-            string effectId,
-            string itemCode,
-            float multiplier
-        ) => config.WriteCombatOverhaulProjectileCoat?.Invoke(stack, effectId, itemCode, multiplier);
+            string[] codes =
+            [
+                .. EffectLibConfig.Loaded.CoatableProjectilesCodes
+                    .Split(',')
+                    .Select(c => c.Trim())
+                    .Where(c => c.Length > 0),
+            ];
+            return codes.Length > 0 && WildcardUtil.Match(codes, col.Code.ToString());
+        }
 
         private static (string EffectId, float PotencyMul)? DefaultResolveLiquidEffect(ItemStack stack)
         {
