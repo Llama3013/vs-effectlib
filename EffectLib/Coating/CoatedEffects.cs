@@ -199,11 +199,7 @@ namespace EffectLib
 
                 if (manager.TryApply(effectId, ctx, displayName))
                 {
-                    (playerEntity.Player as IServerPlayer)?.SendMessage(
-                        GlobalConstants.InfoLogChatGroup,
-                        EffectLang.Get(effectId, "effect-gain", displayName),
-                        EnumChatType.Notification
-                    );
+                    EffectLang.SendGained(playerEntity, effectId, displayName);
                 }
             }
             else if (entity is EntityAgent agent)

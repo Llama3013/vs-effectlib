@@ -1,4 +1,7 @@
+using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Config;
+using Vintagestory.API.Server;
 
 namespace EffectLib
 {
@@ -6,6 +9,16 @@ namespace EffectLib
     {
         public static string Get(string effectId, string key, params object[] args) =>
             GetForDomain(EffectRegistry.DomainOf(effectId), key, args);
+
+        public static void SendGained(EntityPlayer player, string effectId, string displayName)
+        {
+            if (player?.Player is IServerPlayer serverPlayer)
+                serverPlayer.SendMessage(
+                    GlobalConstants.InfoLogChatGroup,
+                    Get(effectId, "effect-gain", displayName),
+                    EnumChatType.Notification
+                );
+        }
 
         public static string GetForDomain(string domain, string key, params object[] args)
         {

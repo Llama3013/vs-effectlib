@@ -143,12 +143,7 @@ namespace EffectLib
             if (!manager.TryApply(effectId, ctx, name))
                 return false;
 
-            if (player.Player is IServerPlayer serverPlayer)
-                serverPlayer.SendMessage(
-                    GlobalConstants.InfoLogChatGroup,
-                    EffectLang.Get(effectId, "effect-gain", name),
-                    EnumChatType.Notification
-                );
+            EffectLang.SendGained(player, effectId, name);
 
             return true;
         }
