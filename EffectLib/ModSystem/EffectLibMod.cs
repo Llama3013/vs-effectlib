@@ -57,6 +57,11 @@ namespace EffectLib
                 typeof(CollectibleBehaviorEffectLiquid)
             );
 
+            api.RegisterCollectibleBehaviorClass(
+                "EffectCarry",
+                typeof(CollectibleBehaviorEffectCarry)
+            );
+
             api.RegisterCollectibleBehaviorClass("Coatable", typeof(CollectibleBehaviorCoatable));
             api.RegisterCollectibleBehaviorClass(
                 "CoatSource",
@@ -117,6 +122,7 @@ namespace EffectLib
             api.Event.PlayerDisconnect += OnPlayerDisconnect;
             api.Event.PlayerDeath += OnPlayerDeath;
             api.Event.PlayerJoin += SendConfigSync;
+            api.Event.AfterActiveSlotChanged += OnActiveSlotChanged;
 
             base.StartServerSide(api);
         }
@@ -166,6 +172,8 @@ namespace EffectLib
         {
             EffectManager manager = EntityBehaviorPlayerEffects.ManagerFor(player?.Entity);
             manager?.RestoreEffects();
+
+            player?.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.HookCarryInventoryEvents();
         }
 
         private static void OnPlayerDisconnect(IServerPlayer player)
@@ -174,7 +182,21 @@ namespace EffectLib
             if (entity?.Properties == null || !entity.HasBehavior<EntityBehaviorPlayerEffects>())
                 return;
 
-            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.Manager?.Suspend();
+            EntityBehaviorPlayerEffects behavior = entity.GetBehavior<EntityBehaviorPlayerEffects>();
+            behavior?.UnhookCarryInventoryEvents();
+            behavior?.SuspendCarryEffects();
+            behavior?.Manager?.Suspend();
+        }
+
+        private static void OnActiveSlotChanged(IServerPlayer player, ActiveSlotChangeEventArgs args)
+        {
+            EntityPlayer entity = player?.Entity;
+            if (entity == null)
+                return;
+
+            // Ensures the behavior/manager exist even if this fires before PlayerNowPlaying does.
+            EntityBehaviorPlayerEffects.ManagerFor(entity);
+            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.MarkCarryDirty();
         }
 
         private static void OnPlayerDeath(IServerPlayer player, DamageSource damageSource)
@@ -183,7 +205,10 @@ namespace EffectLib
             if (entity?.Properties == null || !entity.HasBehavior<EntityBehaviorPlayerEffects>())
                 return;
 
-            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.Manager?.ResetAll();
+            EntityBehaviorPlayerEffects behavior = entity.GetBehavior<EntityBehaviorPlayerEffects>();
+            behavior?.Manager?.ResetAll();
+
+            behavior?.MarkCarryDirty();
         }
 
         public override void Dispose()
@@ -194,6 +219,7 @@ namespace EffectLib
                 sapi.Event.PlayerDisconnect -= OnPlayerDisconnect;
                 sapi.Event.PlayerDeath -= OnPlayerDeath;
                 sapi.Event.PlayerJoin -= SendConfigSync;
+                sapi.Event.AfterActiveSlotChanged -= OnActiveSlotChanged;
                 sapi = null;
             }
 

@@ -20,6 +20,8 @@ namespace EffectLib
 
         public bool ReplaceIfActive { get; set; }
 
+        public string ExclusivityGroup { get; set; }
+
         public List<string> ResetDomains { get; } = [];
 
         public List<string> ResetEffectIds { get; } = [];

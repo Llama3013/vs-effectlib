@@ -40,6 +40,10 @@ namespace EffectLib
 
         public bool IsActive(string id) => active.ContainsKey(id);
 
+        public bool IsGroupBlocked(string group, string exceptId) =>
+            group != null
+            && active.Any(pair => pair.Key != exceptId && pair.Value.Effect.Context.ExclusivityGroup == group);
+
         public bool HasAnyActive => active.Count > 0;
 
         public IReadOnlyCollection<string> ActiveIds => active.Keys;
@@ -99,6 +103,19 @@ namespace EffectLib
                         );
                         return false;
                     }
+                }
+
+                if (ctx.ExclusivityGroup != null)
+                {
+                    foreach (
+                        string otherId in active.Keys
+                            .Where(otherId =>
+                                otherId != id
+                                && active[otherId].Effect.Context.ExclusivityGroup == ctx.ExclusivityGroup
+                            )
+                            .ToList()
+                    )
+                        RemoveEffect(otherId);
                 }
 
                 AppliedEffect effect = new(id, ctx);

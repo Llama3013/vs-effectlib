@@ -26,6 +26,12 @@ namespace EffectLib
         public string CoatableWeaponTags { get; set; } = "weapon-melee";
         public string CoatableProjectilesCodes { get; set; } = "*arrow*";
 
+        public float CarryDirtyCheckIntervalSec { get; set; } = 0.5f;
+
+        public float CarrySafetyNetIntervalSec { get; set; } = 20f;
+
+        public float CarryDurabilityCheckIntervalSec { get; set; } = 5f;
+
         // Global capability gates - block a whole class of effect behavior regardless of what any
         // individual item asks for.
         public bool AllowFly { get; set; } = true;

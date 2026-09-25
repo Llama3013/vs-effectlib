@@ -124,7 +124,7 @@ namespace EffectLib
             if (entry == null)
                 return null;
 
-            EffectContext def = new() { PotencyMul = potencyMul };
+            EffectContext def = new() { PotencyMul = potencyMul, ExclusivityGroup = entry.ExclusivityGroup };
 
             entry.Builder(def);
             return def;

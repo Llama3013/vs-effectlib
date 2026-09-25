@@ -504,10 +504,13 @@ namespace EffectLib
                     if (manager.HasAnyActive)
                         cleared++;
                     manager.ResetAll();
+
+                    target.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.MarkCarryDirty();
                 }
                 else if (manager.IsActive(effectId))
                 {
                     manager.RemoveEffect(effectId);
+                    target.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.MarkCarryDirty();
                     cleared++;
                 }
             }

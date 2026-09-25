@@ -13,6 +13,10 @@
   "effect-size-at-min": "You cannot shrink any further with this effect",
 
   "effect-gain": "You feel the effects of the {0}",
+  "carry-toggled-on": "You activate the {0}",
+  "carry-toggled-off": "You deactivate the {0}",
+  "carry-toggle-state-on": "Currently: On",
+  "carry-toggle-state-off": "Currently: Off",
   "weapon-coated": "Weapon coated with {0} ({1} charges remaining)",
   "arrow-coated": "Arrow coated with {0}",
   "coating-not-allowed": "This cannot be used for coating",
