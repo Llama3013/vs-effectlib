@@ -24,6 +24,39 @@
           "min": 0.5,
           "max": 50.0
         }
+      },
+      "CARRYSCANDELAYSEC": {
+        "name": "CarryScanDelaySec",
+        "ingui": "effectlib:CarryScanDelaySec",
+        "weight": 2.0,
+        "comment": "effectlib:CarryScanDelaySec-Comment",
+        "default": 0.5,
+        "range": {
+          "min": 0.0,
+          "max": 5.0
+        }
+      },
+      "CARRYSAFETYNETINTERVALSEC": {
+        "name": "CarrySafetyNetIntervalSec",
+        "ingui": "effectlib:CarrySafetyNetIntervalSec",
+        "weight": 2.1,
+        "comment": "effectlib:CarrySafetyNetIntervalSec-Comment",
+        "default": 20.0,
+        "range": {
+          "min": 1.0,
+          "max": 600.0
+        }
+      },
+      "CARRYDURABILITYCHECKINTERVALSEC": {
+        "name": "CarryDurabilityCheckIntervalSec",
+        "ingui": "effectlib:CarryDurabilityCheckIntervalSec",
+        "weight": 2.2,
+        "comment": "effectlib:CarryDurabilityCheckIntervalSec-Comment",
+        "default": 5.0,
+        "range": {
+          "min": 1.0,
+          "max": 60.0
+        }
       }
     },
     "string": {

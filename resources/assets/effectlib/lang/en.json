@@ -89,6 +89,12 @@
   "CoatableWeaponTags-Comment": "Comma-separated VS item tags for weapons that can be coated with effects. \"weapon-melee\" is the default, meaning every vanilla weapon and every modded weapon with that tag can be coated. Replace it with something like \"weapon-sword, tool-cleaver\" to only allow specific tags. Requires valid tags to work.",
   "CoatableProjectilesCodes": "Coatable projectile codes",
   "CoatableProjectilesCodes-Comment": "Comma-separated wildcard item codes for projectiles that can be coated with effects. \"*arrow*\" is the default, matching every vanilla and modded arrow. Patterns are matched against the full item code (domain:path), e.g. \"game:arrow-*, mymod:bolt-*\". Leave empty to disable projectile coating entirely.",
+  "CarryScanDelaySec": "Carried item check delay (seconds)",
+  "CarryScanDelaySec-Comment": "How long a player's hotbar and inventory must stay unchanged before carried items are re-checked for their effects. Stops effects flickering on and off while scrolling through the hotbar. Raise this if you think effectlib is causing performance issues but item effects will become less responsive.",
+  "CarrySafetyNetIntervalSec": "Carried item full re-check interval (seconds)",
+  "CarrySafetyNetIntervalSec-Comment": "How often every player's carried items are fully re-checked, as a safety net for changes that don't trigger a normal check. Raise this if you think effectlib is causing performance issues but item effects will become less responsive.",
+  "CarryDurabilityCheckIntervalSec": "Carried item durability drain interval (seconds)",
+  "CarryDurabilityCheckIntervalSec-Comment": "How often carried items that drain durability are worn down. This only changes how often it happens, not how fast: items drain at the rate their own JSON sets either way. Raise this if you think effectlib is causing performance issues but item durability drain will become less responsive for carried effect items.",
 
   "AllowFly": "Allow flight effects",
   "AllowFly-Comment": "Globally allows or blocks any effect that grants flight, regardless of what the effect's own JSON asks for.",
