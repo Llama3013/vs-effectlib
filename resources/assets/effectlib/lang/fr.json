@@ -1,6 +1,6 @@
 {
-  "effect-lose": "Vous sentez les effets de la potion s'estomper",
-  "boat-block": "Vous ne pouvez pas utiliser le rappel en étant sur un bâteau",
+  "effect-lose": "Vous sentez les effets de {0} s'estomper",
+  "boat-block": "Vous ne pouvez pas utiliser le rappel en étant sur un navire",
   "effect-gain": "Vous ressentez les effets de {0}",
   "glow": "Lueur lumineuse",
   "poison": "Poison",
@@ -26,5 +26,20 @@
   "armorDurabilityLoss": "Taux d'usure de l'armure",
   "bowDrawingStrength": "Force de tension de l'arc",
   "wholeVesselLootChance": "Chance d'obtenir une jarre intacte",
-  "temporalGearTLRepairCost": "Coût de réparation du translocateur à engrenage temporel"
+  "temporalGearTLRepairCost": "Coût de réparation du translocateur à engrenage temporel",
+  "size-at-max": "Vous êtes déjà aussi grand que possible",
+  "size-at-min": "Vous êtes déjà aussi petit que possible",
+  "arrow-already-coated": "Cette flèche est déjà enduite",
+  "coating-max-charges": "L'enduit de cette arme est déjà au maximum de charges",
+  "coating-disabled-suffix": "Désactivé par la configuration administrateur du serveur !",
+  "waterbreathe": "Respiration aquatique",
+  "coldresist": "Résistance au froid",
+  "fall": "Protection contre les chutes",
+  "climb": "Escalade",
+  "flight": "Vol",
+  "shrunk": "Rétréci",
+  "CoatableWeaponTags": "Tags d'armes enduisables",
+  "CoatableWeaponTags-Comment": "Tags d'objets VS séparés par des virgules pour les armes enduisables. « weapon-melee » est la valeur par défaut. Toutes les armes vanilla et moddées avec ce tag seront enduisables. Pour n'autoriser que certaines armes, remplacez par exemple par « weapon-sword, tool-cleaver » : seules les épées et le couperet le seront. UTILISEZ DES TAGS VALIDES SINON CELA NE FONCTIONNERA PAS !",
+  "CoatableProjectilesCodes": "Codes de projectiles enduisables",
+  "CoatableProjectilesCodes-Comment": "Codes d'objets joker séparés par des virgules pour les projectiles enduisables. « *arrow* » est la valeur par défaut (toutes les flèches vanilla et moddées). Les motifs sont comparés au code complet (domaine:chemin), ex. « *arrow* », « game:arrow-* », « mymod:bolt-* ». Laissez vide pour désactiver l'enduit de projectiles."
 }

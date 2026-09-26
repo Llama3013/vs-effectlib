@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Vintagestory.API.Common;
@@ -8,65 +9,79 @@ using Vintagestory.API.MathTools;
 namespace EffectLib
 {
     /// <summary>
-    /// Periodically re-evaluates every <see cref="CollectibleBehaviorEffectCarry"/>-bearing item a
-    /// player is carrying and flips its effect on/off via <see cref="EffectManager.TryApply"/> /
-    /// <see cref="EffectManager.RemoveEffect"/> as the item enters/leaves its declared activation
-    /// tier (and, for toggle items, its on/off state), plus drains durability over time from
-    /// whichever items are actually granting an effect. Called from
-    /// <see cref="EntityBehaviorPlayerEffects"/>'s throttled game tick.
+    /// Carry effects are registered under "carry:domain:path" (derived from the item's declared
+    /// effectId) so they never share an id with a consumed or coated effect. Any active effect
+    /// with this prefix is owned by <see cref="CarryEffectScanner"/>, and is never restored from
+    /// a save - the next scan re-derives it from the inventory instead.
+    /// </summary>
+    public static class CarryEffectIds
+    {
+        public const string Prefix = "carry:";
+
+        public static string For(string effectId) => Prefix + effectId;
+
+        public static bool Is(string effectId) =>
+            effectId?.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    /// <summary>
+    /// Re-evaluates every <see cref="CollectibleBehaviorEffectCarry"/>-bearing item a player is
+    /// carrying and flips its effect on/off as the item enters/leaves its declared activation
+    /// tier (and, for toggle items, its on/off state), plus drains durability from whichever
+    /// items are actually granting an effect. Driven by <see cref="EntityBehaviorPlayerEffects"/>.
     /// </summary>
     public static class CarryEffectScanner
     {
-        public static void Scan(EntityPlayer player, EffectManager manager, HashSet<string> carryActiveIds)
+        public static bool Scan(EntityPlayer player, EffectManager manager)
         {
-            if (player?.Player == null || manager == null)
-                return;
+            if (!CanScan(player, manager))
+                return false;
 
-            carryActiveIds.RemoveWhere(id => !manager.IsActive(id));
+            List<(CollectibleBehaviorEffectCarry Carry, ItemSlot Slot)> granting = ResolveGranting(player);
+            HashSet<string> grantingIds = [.. granting.Select(g => g.Carry.EffectId)];
 
-            HashSet<string> qualifying = [.. EnumerateQualifying(player).Select(q => q.Carry.EffectId)];
-
-            foreach (string id in qualifying)
+            // Revoke first, so an item swapped in can take over an exclusivity group the
+            // outgoing one held.
+            foreach (string id in manager.ActiveIds.Where(CarryEffectIds.Is).ToList())
             {
-                if (carryActiveIds.Contains(id))
+                if (!grantingIds.Contains(id))
+                    manager.RemoveEffect(id);
+            }
+
+            foreach ((CollectibleBehaviorEffectCarry carry, _) in granting)
+            {
+                string id = carry.EffectId;
+                bool active = manager.IsActive(id);
+                if (active && Equals(manager.SourceOf(id), carry.Source))
                     continue;
 
-                EffectContext ctx = EffectRegistry.Build(id, 1f);
-                if (ctx == null)
+                EffectContext ctx = EffectRegistry.Build(id, 1f, carry.Source);
+                if (ctx == null || manager.IsGroupBlocked(ctx.ExclusivityGroup, id))
                     continue;
 
-                ctx.Duration = EffectContext.EndlessDuration;
+                // A different item (e.g. a higher-order upgrade) now provides this effect - swap
+                // its definition in.
+                if (active)
+                    manager.RemoveEffect(id, notify: false);
 
-                if (UtilityEffects.GetBlockReason(player, ctx) != null)
-                    continue;
-
-                if (manager.IsGroupBlocked(ctx.ExclusivityGroup, id))
-                    continue;
-
-                if (ctx.ResetsEffects)
-                    manager.PurgeFor(id, ctx);
-
-                string name = EffectLang.Name(id);
-                if (manager.TryApply(id, ctx, name))
-                {
-                    carryActiveIds.Add(id);
+                string name = carry.DisplayName;
+                if (manager.TryApply(id, ctx, name) && ctx.Notify)
                     EffectLang.SendGained(player, id, name);
-                }
             }
 
-            foreach (string id in carryActiveIds.Where(id => !qualifying.Contains(id)).ToList())
-            {
-                manager.RemoveEffect(id);
-                carryActiveIds.Remove(id);
-            }
+            return true;
         }
 
-        public static void DrainDurability(EntityPlayer player, EffectManager manager, float elapsedSec)
+        // True if any item broke or was destroyed, so the caller can rescan straight away.
+        public static bool DrainDurability(EntityPlayer player, EffectManager manager, float elapsedSec)
         {
-            if (player?.Player == null || manager == null || elapsedSec <= 0f)
-                return;
+            // Nothing can drain unless a carry effect is active, so skip the inventory walk.
+            if (!CanScan(player, manager) || elapsedSec <= 0f || !manager.ActiveIds.Any(CarryEffectIds.Is))
+                return false;
 
-            foreach ((CollectibleBehaviorEffectCarry carry, ItemSlot slot) in EnumerateQualifying(player))
+            bool anyBroke = false;
+
+            foreach ((CollectibleBehaviorEffectCarry carry, ItemSlot slot) in ResolveGranting(player))
             {
                 if (carry.DurabilityDrainIntervalSec <= 0f || carry.DurabilityDrainAmount <= 0)
                     continue;
@@ -85,12 +100,22 @@ namespace EffectLib
                     player,
                     slot,
                     amount,
-                    destroyOnZeroDurability: false
+                    destroyOnZeroDurability: carry.DestroyWhenBroken
                 );
+
+                anyBroke |= slot.Empty || IsBroken(slot.Itemstack);
             }
+
+            return anyBroke;
         }
 
-        private static IEnumerable<(CollectibleBehaviorEffectCarry Carry, ItemSlot Slot)> EnumerateQualifying(
+        private static bool CanScan(EntityPlayer player, EffectManager manager) =>
+            player?.Player?.InventoryManager != null && manager != null && player.Alive;
+
+        // One item per effect id: the qualifying copy with the highest order, ties going to the
+        // first found - checking the hands, then the rest of the hotbar, then the backpack. That
+        // copy's definition is applied, and it's the one that drains.
+        private static List<(CollectibleBehaviorEffectCarry Carry, ItemSlot Slot)> ResolveGranting(
             EntityPlayer player
         )
         {
@@ -101,75 +126,78 @@ namespace EffectLib
             ItemSlot rightHand = player.RightHandItemSlot;
             ItemSlot leftHand = player.LeftHandItemSlot;
 
-            if (hotbar != null)
-                foreach (ItemSlot slot in hotbar)
-                    foreach (var q in QualifiersIn(slot, isHotbar: true, rightHand, leftHand))
-                        yield return q;
+            IEnumerable<(ItemSlot Slot, bool InHotbar)> slots = new[] { rightHand, leftHand }
+                .Concat(hotbar?.Where(slot => slot != rightHand && slot != leftHand) ?? [])
+                .Select(slot => (slot, true))
+                .Concat(backpack?.Select(slot => (slot, false)) ?? []);
 
-            if (backpack != null)
-                foreach (ItemSlot slot in backpack)
-                    foreach (var q in QualifiersIn(slot, isHotbar: false, rightHand, leftHand))
-                        yield return q;
+            // Ids kept in first-found order, so exclusivity groups still favour the hands.
+            List<string> ids = [];
+            Dictionary<string, (CollectibleBehaviorEffectCarry Carry, ItemSlot Slot)> best = [];
+
+            foreach ((ItemSlot slot, bool inHotbar) in slots)
+            {
+                CollectibleObject collectible = slot?.Itemstack?.Collectible;
+                if (collectible == null)
+                    continue;
+
+                foreach (
+                    CollectibleBehaviorEffectCarry carry in collectible.CollectibleBehaviors.OfType<CollectibleBehaviorEffectCarry>()
+                )
+                {
+                    if (carry.EffectId == null || !Qualifies(carry, slot, inHotbar, rightHand, leftHand))
+                        continue;
+
+                    if (!best.TryGetValue(carry.EffectId, out var current))
+                        ids.Add(carry.EffectId);
+                    else if (carry.Order <= current.Carry.Order)
+                        continue;
+
+                    best[carry.EffectId] = (carry, slot);
+                }
+            }
+
+            return [.. ids.Select(id => best[id])];
         }
 
-        private static IEnumerable<(CollectibleBehaviorEffectCarry, ItemSlot)> QualifiersIn(
+        private static bool Qualifies(
+            CollectibleBehaviorEffectCarry carry,
             ItemSlot slot,
-            bool isHotbar,
+            bool inHotbar,
             ItemSlot rightHand,
             ItemSlot leftHand
-        )
-        {
-            CollectibleObject collectible = slot?.Itemstack?.Collectible;
-            if (collectible == null)
-                yield break;
-
-            foreach (
-                CollectibleBehaviorEffectCarry carry in collectible.CollectibleBehaviors.OfType<CollectibleBehaviorEffectCarry>()
-            )
+        ) =>
+            IsUsable(carry, slot)
+            && carry.Activation switch
             {
-                if (carry.EffectId == null)
-                    continue;
+                EnumCarryActivation.Inventory => true,
+                EnumCarryActivation.Hotbar => inHotbar,
+                EnumCarryActivation.Held => IsHeld(carry, slot, rightHand, leftHand),
+                _ => false,
+            };
 
-                if (!carry.AllowWhenBroken && IsBroken(collectible, slot.Itemstack))
-                    continue;
-
-                if (!carry.IsToggledOn(slot))
-                    continue;
-
-                bool qualifies = carry.Activation switch
-                {
-                    EnumCarryActivation.Inventory => true,
-                    EnumCarryActivation.Hotbar => isHotbar,
-                    EnumCarryActivation.Held => IsHeld(collectible, carry.Hand, rightHand, leftHand),
-                    _ => false,
-                };
-
-                if (qualifies)
-                    yield return (carry, slot);
-            }
-        }
+        private static bool IsUsable(CollectibleBehaviorEffectCarry carry, ItemSlot slot) =>
+            (carry.AllowWhenBroken || !IsBroken(slot.Itemstack)) && carry.IsToggledOn(slot);
 
         // Items with no durability at all (maxDurability <= 1) are never "broken".
-        private static bool IsBroken(CollectibleObject collectible, ItemStack stack) =>
-            collectible.GetMaxDurability(stack) > 1 && collectible.GetRemainingDurability(stack) <= 0;
+        private static bool IsBroken(ItemStack stack) =>
+            stack.Collectible.GetMaxDurability(stack) > 1
+            && stack.Collectible.GetRemainingDurability(stack) <= 0;
 
         private static bool IsHeld(
-            CollectibleObject collectible,
-            EnumCarryHand hand,
+            CollectibleBehaviorEffectCarry carry,
+            ItemSlot slot,
             ItemSlot rightHand,
             ItemSlot leftHand
-        )
-        {
-            bool isRight = rightHand?.Itemstack?.Collectible == collectible;
-            bool isLeft = leftHand?.Itemstack?.Collectible == collectible;
-
-            return hand switch
+        ) =>
+            carry.Hand switch
             {
-                EnumCarryHand.Main => isRight,
-                EnumCarryHand.Off => isLeft,
-                EnumCarryHand.Both => isRight && isLeft,
-                _ => isRight || isLeft, // Either
+                EnumCarryHand.Main => slot == rightHand,
+                EnumCarryHand.Off => slot == leftHand,
+                EnumCarryHand.Both => slot == rightHand
+                    && leftHand?.Itemstack?.Collectible == slot.Itemstack.Collectible
+                    && IsUsable(carry, leftHand),
+                _ => slot == rightHand || slot == leftHand, // Either
             };
-        }
     }
 }

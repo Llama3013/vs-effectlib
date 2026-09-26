@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+using System;
+using System.Linq;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.API.Config;
@@ -9,17 +10,20 @@ namespace EffectLib
 {
     public class EntityBehaviorPlayerEffects : EntityBehavior
     {
-        private readonly EntityPlayer player;
-        private readonly HashSet<string> carryActiveIds = [];
+        private const int CarryPollMs = 250;
 
-        private bool carryDirty = true;
+        private readonly EntityPlayer player;
+
+        private bool carryPending;
+        private long carryChangedMs;
+        private long lastDrainMs;
 
         private IInventory hookedHotbar;
         private IInventory hookedBackpack;
 
-        private readonly long dirtyCheckListenerId;
-        private readonly long safetyNetListenerId;
-        private readonly long durabilityListenerId;
+        private long pollListenerId;
+        private long safetyNetListenerId;
+        private long durabilityListenerId;
 
         public EntityBehaviorPlayerEffects(Entity entity)
             : base(entity)
@@ -28,19 +32,6 @@ namespace EffectLib
             {
                 player = ep;
                 Manager = new EffectManager(ep);
-
-                dirtyCheckListenerId = entity.World.RegisterGameTickListener(
-                    OnDirtyCheckTick,
-                    (int)(EffectLibConfig.Loaded.CarryDirtyCheckIntervalSec * 1000)
-                );
-                safetyNetListenerId = entity.World.RegisterGameTickListener(
-                    OnSafetyNetTick,
-                    (int)(EffectLibConfig.Loaded.CarrySafetyNetIntervalSec * 1000)
-                );
-                durabilityListenerId = entity.World.RegisterGameTickListener(
-                    OnDurabilityTick,
-                    (int)(EffectLibConfig.Loaded.CarryDurabilityCheckIntervalSec * 1000)
-                );
             }
         }
 
@@ -51,58 +42,17 @@ namespace EffectLib
         public override void OnEntityDespawn(EntityDespawnData despawnData)
         {
             base.OnEntityDespawn(despawnData);
-
-            if (Manager == null)
-                return;
-
-            entity.World.UnregisterGameTickListener(dirtyCheckListenerId);
-            entity.World.UnregisterGameTickListener(safetyNetListenerId);
-            entity.World.UnregisterGameTickListener(durabilityListenerId);
+            StopCarryTracking();
         }
 
-        private void OnDirtyCheckTick(float dt)
-        {
-            if (!carryDirty)
-                return;
-
-            carryDirty = false;
-            CarryEffectScanner.Scan(player, Manager, carryActiveIds);
-        }
-
-        // Unconditional - runs regardless of the dirty flag, see CarrySafetyNetIntervalSec.
-        private void OnSafetyNetTick(float dt)
-        {
-            carryDirty = false;
-            CarryEffectScanner.Scan(player, Manager, carryActiveIds);
-        }
-
-        private void OnDurabilityTick(float dt) =>
-            CarryEffectScanner.DrainDurability(
-                player,
-                Manager,
-                EffectLibConfig.Loaded.CarryDurabilityCheckIntervalSec
-            );
-
-        public void SuspendCarryEffects()
-        {
-            if (Manager == null)
-                return;
-
-            foreach (string id in carryActiveIds)
-                Manager.RemoveEffect(id, notify: false);
-
-            carryActiveIds.Clear();
-        }
-
-        public void MarkCarryDirty() => carryDirty = true;
-
-        public void HookCarryInventoryEvents()
+        // Call once the player is actually playing, so their inventories exist.
+        public void StartCarryTracking()
         {
             IPlayerInventoryManager inventoryManager = player?.Player?.InventoryManager;
-            if (inventoryManager == null)
+            if (Manager == null || inventoryManager == null || !CollectibleBehaviorEffectCarry.AnyLoaded)
                 return;
 
-            UnhookCarryInventoryEvents();
+            StopCarryTracking();
 
             hookedHotbar = inventoryManager.GetHotbarInventory();
             hookedBackpack = inventoryManager.GetOwnInventory(GlobalConstants.backpackInvClassName);
@@ -111,9 +61,23 @@ namespace EffectLib
                 hookedHotbar.SlotModified += OnCarrySlotModified;
             if (hookedBackpack != null)
                 hookedBackpack.SlotModified += OnCarrySlotModified;
+
+            IWorldAccessor world = entity.World;
+            pollListenerId = world.RegisterGameTickListener(OnCarryPollTick, CarryPollMs);
+            safetyNetListenerId = world.RegisterGameTickListener(
+                _ => RunCarryScan(),
+                (int)(EffectLibConfig.Loaded.CarrySafetyNetIntervalSec * 1000)
+            );
+            durabilityListenerId = world.RegisterGameTickListener(
+                OnDurabilityTick,
+                (int)(EffectLibConfig.Loaded.CarryDurabilityCheckIntervalSec * 1000)
+            );
+            lastDrainMs = world.ElapsedMilliseconds;
+
+            MarkCarryDirty();
         }
 
-        public void UnhookCarryInventoryEvents()
+        public void StopCarryTracking()
         {
             if (hookedHotbar != null)
                 hookedHotbar.SlotModified -= OnCarrySlotModified;
@@ -122,6 +86,64 @@ namespace EffectLib
 
             hookedHotbar = null;
             hookedBackpack = null;
+
+            foreach (long listenerId in new[] { pollListenerId, safetyNetListenerId, durabilityListenerId })
+                if (listenerId != 0)
+                    entity.World.UnregisterGameTickListener(listenerId);
+
+            pollListenerId = safetyNetListenerId = durabilityListenerId = 0;
+        }
+
+        // Removes carry effects without saving them - the next scan after rejoining re-derives
+        // them from whatever the player is carrying then.
+        public void SuspendCarryEffects()
+        {
+            StopCarryTracking();
+
+            if (Manager == null)
+                return;
+
+            foreach (string id in Manager.ActiveIds.Where(CarryEffectIds.Is).ToList())
+                Manager.RemoveEffect(id, notify: false);
+        }
+
+        // Scans are deferred until nothing has changed for CarryScanDelaySec, so scrolling
+        // through the hotbar only settles on the slot the player stops on.
+        public void MarkCarryDirty()
+        {
+            carryPending = true;
+            carryChangedMs = entity.World.ElapsedMilliseconds;
+        }
+
+        private void OnCarryPollTick(float dt)
+        {
+            if (
+                carryPending
+                && entity.World.ElapsedMilliseconds - carryChangedMs
+                    >= EffectLibConfig.Loaded.CarryScanDelaySec * 1000
+            )
+                RunCarryScan();
+        }
+
+        private void RunCarryScan()
+        {
+            // Cleared after, not before - the scan's own apply/remove calls mark dirty again, and a
+            // scan that couldn't run (e.g. player dead) stays pending until it can.
+            if (CarryEffectScanner.Scan(player, Manager))
+                carryPending = false;
+        }
+
+        private void OnDurabilityTick(float dt)
+        {
+            long now = entity.World.ElapsedMilliseconds;
+            float intervalSec = EffectLibConfig.Loaded.CarryDurabilityCheckIntervalSec;
+
+            // Real elapsed time so lag doesn't cause problems
+            float elapsedSec = Math.Min((now - lastDrainMs) / 1000f, intervalSec * 2);
+            lastDrainMs = now;
+
+            if (CarryEffectScanner.DrainDurability(player, Manager, elapsedSec))
+                RunCarryScan();
         }
 
         private void OnCarrySlotModified(int slotId) => MarkCarryDirty();

@@ -27,5 +27,7 @@
   "armorDurabilityLoss": "방어구 내구도 손실률",
   "bowDrawingStrength": "활 당김 강도",
   "wholeVesselLootChance": "온전한 단지 전리품 획득 확률",
-  "temporalGearTLRepairCost": "위치변환기 수리 비용"
+  "temporalGearTLRepairCost": "위치변환기 수리 비용",
+  "CoatableWeaponTags": "코팅 가능한 무기 태그",
+  "CoatableWeaponTags-Comment": "물약으로 코팅할 수 있는 무기의 항목 태그를 쉼표로 구분하여 입력합니다. 기본값은 \"weapon-melee\"입니다. 이 경우 해당 태그가 지정된 모든 기본 무기와 모드 무기를 코팅할 수 있습니다. 다른 태그를 가진 특정 무기만 코팅할 수 있도록 하려면, 예를 들어 \"weapon-sword, tool-cleaver\"로 대체하면 검과 도끼만 코팅할 수 있게 됩니다. 유효한 태그를 사용해야만 작동합니다!"
 }

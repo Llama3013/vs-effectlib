@@ -26,14 +26,21 @@ namespace EffectLib
             if (attackedEntity == null || !attackedEntity.Alive)
                 return;
 
-            (string effectId, float multiplier, string itemCode)? consumed =
+            (string effectId, float multiplier, float durationMul, string itemCode)? consumed =
                 CoatedEffects.TryConsumeWeaponCharge(itemslot);
             if (consumed == null)
                 return;
 
-            (string effectId, float multiplier, string itemCode) = consumed.Value;
+            (string effectId, float multiplier, float durationMul, string itemCode) = consumed.Value;
             string displayName = CoatedEffects.ResolveDisplayName(itemCode, effectId);
-            CoatedEffects.Apply(effectId, attackedEntity, multiplier, displayName);
+            CoatedEffects.Apply(
+                effectId,
+                attackedEntity,
+                multiplier,
+                displayName,
+                CoatedEffects.SourceFromItemCode(itemCode),
+                durationMul
+            );
         }
     }
 }

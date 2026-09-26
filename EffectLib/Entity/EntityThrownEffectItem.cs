@@ -75,7 +75,7 @@ namespace EffectLib
             ProjectileStack?.ResolveBlockOrItem(World);
             CollectibleObject collectible = ProjectileStack?.Collectible;
             JsonObject def = collectible?.Attributes?[EffectInfoKey];
-            string effectId = def?.Exists == true ? def["effectId"].AsString()?.ToLowerInvariant() : null;
+            string effectId = EffectIds.Read(def, "effectId", collectible);
 
             if (string.IsNullOrWhiteSpace(effectId))
             {
@@ -83,11 +83,14 @@ namespace EffectLib
                 return;
             }
 
-            if (!EffectRegistry.IsRegistered(effectId))
+            if (!EffectRegistry.IsRegistered(effectId, collectible.Code))
                 JsonEffectDefinition.RegisterFrom(effectId, collectible.Code.Domain, def, collectible.Code);
 
             float radius = def["throwRadius"].AsFloat(3f);
-            string displayName = EffectLang.Name(effectId);
+            string displayName = EffectLang.NameFor(
+                effectId,
+                EffectRegistry.Build(effectId, 1f, collectible.Code)
+            );
 
             foreach (
                 Entity target in World.GetEntitiesAround(
@@ -97,7 +100,7 @@ namespace EffectLib
                     e => e is EntityAgent && e.Alive
                 )
             )
-                CoatedEffects.Apply(effectId, target, 1f, displayName);
+                CoatedEffects.Apply(effectId, target, 1f, displayName, collectible.Code);
 
             Die(EnumDespawnReason.Death);
         }

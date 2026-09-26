@@ -23,6 +23,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
         private const string KeyItemCode = "coatedItemCode";
         private const string KeyCharges = "coatCharges";
         private const string KeyMultiplier = "coatMultiplier";
+        private const string KeyDurationMul = "coatDurationMul";
 
         private static WeaponBuffSystem buffSystem;
         private static readonly WeaponCoatBuffProvider provider = new();
@@ -34,7 +35,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
         internal static System.Func<bool> allowCoating;
         internal static System.Func<float> effectMultiplier;
         internal static System.Func<string, bool> isEffectCoatable;
-        internal static System.Action<string, Entity, float, string> applyEffect;
+        internal static System.Action<string, Entity, float, float, string, string> applyEffect;
         internal static System.Func<string, string, object[], string> effectLangGet;
 
         public static void Init(
@@ -42,7 +43,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             System.Func<bool> allowCoating,
             System.Func<float> effectMultiplier,
             System.Func<string, bool> isEffectCoatable,
-            System.Action<string, Entity, float, string> applyEffect,
+            System.Action<string, Entity, float, float, string, string> applyEffect,
             System.Func<string, string, object[], string> effectLangGet
         )
         {
@@ -72,7 +73,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
         public static bool IsCoManagedProjectile(ItemStack stack) =>
             buffSystem?.IsProjectileBuffTarget(stack) ?? false;
 
-        public static (string, string, float, int)? GetCoating(ItemStack stack)
+        public static (string, string, float, float, int)? GetCoating(ItemStack stack)
         {
             if (buffSystem == null)
                 return null;
@@ -90,6 +91,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
                     buff.Data.GetString("effectId", ""),
                     buff.Data.GetString("itemCode", ""),
                     buff.Data.GetFloat("multiplier", effectMultiplier?.Invoke() ?? 1f),
+                    buff.Data.GetFloat("durationMul", 1f),
                     buff.UsesRemaining ?? 0
                 );
             }
@@ -102,6 +104,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             string effectId,
             string itemCode,
             float multiplier,
+            float durationMul,
             int charges
         )
         {
@@ -112,6 +115,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             data.SetString("effectId", effectId);
             data.SetString("itemCode", itemCode);
             data.SetFloat("multiplier", multiplier);
+            data.SetFloat("durationMul", durationMul);
 
             buffSystem.ApplyBuff(
                 slot,
@@ -136,6 +140,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             attrs.RemoveAttribute(KeyItemCode);
             attrs.RemoveAttribute(KeyCharges);
             attrs.RemoveAttribute(KeyMultiplier);
+            attrs.RemoveAttribute(KeyDurationMul);
             slot.MarkDirty();
         }
 
@@ -143,7 +148,8 @@ namespace EffectLib.CombatOverhaulCompatBridge
             ItemStack stack,
             string effectId,
             string itemCode,
-            float multiplier
+            float multiplier,
+            float durationMul
         )
         {
             if (buffSystem == null || stack == null)
@@ -153,6 +159,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             data.SetString("effectId", effectId);
             data.SetString("itemCode", itemCode);
             data.SetFloat("multiplier", multiplier);
+            data.SetFloat("durationMul", durationMul);
             data.SetBool("isProjectile", true);
 
             buffSystem.ApplyProjectileBuff(
@@ -173,6 +180,7 @@ namespace EffectLib.CombatOverhaulCompatBridge
             attrs.RemoveAttribute(KeyEffectId);
             attrs.RemoveAttribute(KeyItemCode);
             attrs.RemoveAttribute(KeyMultiplier);
+            attrs.RemoveAttribute(KeyDurationMul);
         }
     }
 
@@ -210,9 +218,10 @@ namespace EffectLib.CombatOverhaulCompatBridge
                 "multiplier",
                 CompatEntry.effectMultiplier?.Invoke() ?? 1f
             );
+            float durationMul = buff.Data.GetFloat("durationMul", 1f);
             string itemCode = buff.Data.GetString("itemCode");
             string displayName = string.IsNullOrEmpty(itemCode) ? effectId : Lang.Get(itemCode);
-            CompatEntry.applyEffect?.Invoke(effectId, target, multiplier, displayName);
+            CompatEntry.applyEffect?.Invoke(effectId, target, multiplier, durationMul, displayName, itemCode);
         }
 
         public override void AppendTooltip(

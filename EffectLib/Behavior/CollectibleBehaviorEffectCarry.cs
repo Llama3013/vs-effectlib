@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
@@ -40,11 +41,28 @@ namespace EffectLib
 
         protected ICoreAPI Api { get; private set; }
 
+        // Set once any item loads a working carry effect - with none, players inventories are never scanned.
+        public static bool AnyLoaded { get; private set; }
+
         public string EffectId { get; private set; }
+
+        public string DeclaredEffectId { get; private set; }
+
+        public string DisplayName =>
+            EffectLang.NameFor(DeclaredEffectId, EffectRegistry.Build(EffectId, 1f, Source));
+
+        public AssetLocation Source => collObj.Code;
+
+        // When several carried items share an effect id, the highest order is the one applied.
+        public int Order { get; private set; }
+
         public EnumCarryActivation Activation { get; private set; }
         public EnumCarryHand Hand { get; private set; } = EnumCarryHand.Either;
 
         public bool AllowWhenBroken { get; private set; }
+
+        // Durability drain destroys the item at zero instead of leaving it broken.
+        public bool DestroyWhenBroken { get; private set; }
 
         public float DurabilityDrainIntervalSec { get; private set; }
         public int DurabilityDrainAmount { get; private set; } = 1;
@@ -72,32 +90,18 @@ namespace EffectLib
 
         private void RegisterOwnEffect()
         {
-            JsonObject def = collObj.Attributes?[attributeKey];
-            if (def?.Exists != true)
-            {
-                Api.Logger.Warning(
-                    "[EffectLib] {0} has the EffectCarry behavior but no '{1}' attribute, so it "
-                        + "will do nothing.",
-                    collObj.Code,
-                    attributeKey
-                );
-                return;
-            }
-
-            EffectId = def[idField].AsString()?.ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(EffectId))
-            {
-                Api.Logger.Warning(
-                    "[EffectLib] {0}'s '{1}' attribute has no '{2}' - give it one, e.g. "
-                        + "\"{1}\": {{ \"{2}\": \"{3}:youreffectid\", ... }}. This item will do nothing.",
-                    collObj.Code,
+            if (
+                !JsonEffectDefinition.TryReadOwn(
+                    collObj,
                     attributeKey,
                     idField,
-                    collObj.Code.Domain
-                );
-                EffectId = null;
+                    "EffectCarry",
+                    Api.Logger,
+                    out JsonObject def,
+                    out string declaredId
+                )
+            )
                 return;
-            }
 
             string activation = def["activation"].AsString();
             if (
@@ -111,7 +115,6 @@ namespace EffectLib
                     collObj.Code,
                     attributeKey
                 );
-                EffectId = null;
                 return;
             }
             Activation = parsedActivation;
@@ -121,11 +124,81 @@ namespace EffectLib
                 Hand = parsedHand;
 
             AllowWhenBroken = def["allowWhenBroken"].AsBool();
+            DestroyWhenBroken = def["destroyWhenBroken"].AsBool();
             DurabilityDrainIntervalSec = def["durabilityDrainIntervalSec"].AsFloat();
             DurabilityDrainAmount = def["durabilityDrainAmount"].AsInt(1);
             RequiresToggle = def["toggle"].AsBool();
+            Order = def["order"].AsInt();
+            bool notify = def["notify"].AsBool();
 
-            JsonEffectDefinition.RegisterFrom(EffectId, collObj.Code.Domain, def, collObj.Code);
+            EffectContext probe = new() { PotencyMul = 1f };
+            JsonEffectDefinition.Apply(probe, def, collObj.Code.Domain);
+            List<string> ignored = AdaptForCarry(probe);
+            if (ignored.Count > 0)
+                Api.Logger.Warning(
+                    "[EffectLib] {0}'s '{1}' attribute sets {2}, which carried items ignore - they "
+                        + "would re-fire every time the item is re-equipped.",
+                    collObj.Code,
+                    attributeKey,
+                    string.Join(", ", ignored)
+                );
+
+            DeclaredEffectId = declaredId;
+            EffectId = CarryEffectIds.For(declaredId);
+            AnyLoaded = true;
+
+            JsonEffectDefinition.RegisterFrom(
+                EffectId,
+                collObj.Code.Domain,
+                def,
+                collObj.Code,
+                ctx =>
+                {
+                    AdaptForCarry(ctx);
+                    ctx.Duration = EffectContext.EndlessDuration;
+                    ctx.Notify = notify;
+                }
+            );
+        }
+
+        // A size change lasts only while the item is carried. Other one-time effects would re-fire
+        // on every re-grant, and a purge would fight other carried items, so carry effects drop
+        // them - returning the names of any dropped.
+        private static List<string> AdaptForCarry(EffectContext ctx)
+        {
+            ctx.SizeOffset = ctx.SizeChange;
+            ctx.SizeChange = 0f;
+
+            List<string> stripped = [];
+
+            void Drop(bool isSet, string field, Action clear)
+            {
+                if (!isSet)
+                    return;
+                clear();
+                stripped.Add(field);
+            }
+
+            Drop(
+                ctx.TickSec <= 0f && Math.Abs(ctx.Health) > float.Epsilon,
+                "health (without tickSec)",
+                () => ctx.Health = 0f
+            );
+            Drop(
+                Math.Abs(ctx.RetainedNutrition) > float.Epsilon,
+                "retainedNutrition",
+                () => ctx.RetainedNutrition = 0f
+            );
+            Drop(
+                Math.Abs(ctx.TemporalStabilityGain) > float.Epsilon,
+                "temporalStabilityGain",
+                () => ctx.TemporalStabilityGain = 0f
+            );
+            Drop(ctx.Respawn, "respawn", () => ctx.Respawn = false);
+            Drop(ctx.Reshape, "reshape", () => ctx.Reshape = false);
+            Drop(ctx.ResetsEffects, "resetsEffects", () => ctx.ResetsEffects = false);
+
+            return stripped;
         }
 
         public override void OnHeldInteractStart(
@@ -153,7 +226,7 @@ namespace EffectLib
                         EffectLang.Get(
                             EffectId,
                             nowOn ? "carry-toggled-on" : "carry-toggled-off",
-                            EffectLang.Name(EffectId)
+                            DisplayName
                         ),
                         EnumChatType.Notification
                     );

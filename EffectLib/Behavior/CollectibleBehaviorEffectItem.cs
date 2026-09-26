@@ -52,34 +52,18 @@ namespace EffectLib
 
         protected virtual void RegisterOwnEffect()
         {
-            JsonObject def = collObj.Attributes?[attributeKey];
-            if (def?.Exists != true)
-            {
-                Api.Logger.Warning(
-                    "[EffectLib] {0} has the EffectItem behavior but no '{1}' attribute, so it "
-                        + "will do nothing.",
-                    collObj.Code,
-                    attributeKey
-                );
-                return;
-            }
-
-            ownEffectId = def[idField].AsString()?.ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(ownEffectId))
-            {
-                Api.Logger.Warning(
-                    "[EffectLib] {0}'s '{1}' attribute has no '{2}' - give it one, e.g. "
-                        + "\"{1}\": {{ \"{2}\": \"{3}:youreffectid\", ... }}. This item will do nothing.",
-                    collObj.Code,
+            if (
+                JsonEffectDefinition.TryReadOwn(
+                    collObj,
                     attributeKey,
                     idField,
-                    collObj.Code.Domain
-                );
-                ownEffectId = null;
-                return;
-            }
-
-            JsonEffectDefinition.RegisterFrom(ownEffectId, collObj.Code.Domain, def, collObj.Code);
+                    "EffectItem",
+                    Api.Logger,
+                    out JsonObject def,
+                    out ownEffectId
+                )
+            )
+                JsonEffectDefinition.RegisterFrom(ownEffectId, collObj.Code.Domain, def, collObj.Code);
         }
 
         protected virtual bool ShouldIntercept(
@@ -92,15 +76,19 @@ namespace EffectLib
             ItemSlot slot,
             EntityAgent byEntity,
             out string effectId,
-            out float potencyMul
+            out float potencyMul,
+            out float durationMul
         )
         {
             effectId = ownEffectId;
             potencyMul = 1f;
+            durationMul = 1f;
             return effectId != null;
         }
 
         protected virtual float GetConsumeTime(EntityAgent byEntity) => consumeTime;
+
+        protected virtual AssetLocation GetEffectSource(ItemSlot slot) => collObj.Code;
 
         protected virtual bool HasEnoughSource(ItemSlot slot) => (slot.Itemstack?.StackSize ?? 0) > 0;
 
@@ -139,7 +127,7 @@ namespace EffectLib
             if (manager == null)
                 return false;
 
-            string name = EffectLang.Name(effectId);
+            string name = EffectLang.NameFor(effectId, ctx);
             if (!manager.TryApply(effectId, ctx, name))
                 return false;
 
@@ -191,7 +179,7 @@ namespace EffectLib
         {
             if (!ShouldIntercept(slot, byEntity, blockSel))
                 return;
-            if (!TryResolveEffect(slot, byEntity, out _, out _))
+            if (!TryResolveEffect(slot, byEntity, out _, out _, out _))
                 return;
 
             if (byEntity.World.Side == EnumAppSide.Server)
@@ -239,7 +227,7 @@ namespace EffectLib
             ref EnumHandling handling
         )
         {
-            if (!TryResolveEffect(slot, byEntity, out _, out _))
+            if (!TryResolveEffect(slot, byEntity, out _, out _, out _))
                 return base.OnHeldInteractStep(
                     secondsUsed,
                     slot,
@@ -306,7 +294,7 @@ namespace EffectLib
         {
             ClearProgressBar();
 
-            if (!TryResolveEffect(slot, byEntity, out _, out _))
+            if (!TryResolveEffect(slot, byEntity, out _, out _, out _))
                 return;
 
             handling = EnumHandling.PreventDefault;
@@ -333,10 +321,23 @@ namespace EffectLib
 
         private void TryConsumeAndApply(ItemSlot slot, EntityAgent byEntity)
         {
-            if (!TryResolveEffect(slot, byEntity, out string effectId, out float potencyMul))
+            if (
+                !TryResolveEffect(
+                    slot,
+                    byEntity,
+                    out string effectId,
+                    out float potencyMul,
+                    out float durationMul
+                )
+            )
                 return;
 
-            EffectContext ctx = EffectRegistry.Build(effectId, potencyMul);
+            EffectContext ctx = EffectRegistry.Build(
+                effectId,
+                potencyMul,
+                GetEffectSource(slot),
+                durationMul
+            );
             if (ctx == null)
                 return;
 
@@ -365,10 +366,23 @@ namespace EffectLib
             bool withDebugInfo
         )
         {
-            if (!TryResolveEffect(slot, null, out string effectId, out float potencyMul))
+            if (
+                !TryResolveEffect(
+                    slot,
+                    null,
+                    out string effectId,
+                    out float potencyMul,
+                    out float durationMul
+                )
+            )
                 return;
 
-            EffectContext ctx = EffectRegistry.Build(effectId, potencyMul);
+            EffectContext ctx = EffectRegistry.Build(
+                effectId,
+                potencyMul,
+                GetEffectSource(slot),
+                durationMul
+            );
             if (ctx == null)
                 return;
 
@@ -378,57 +392,8 @@ namespace EffectLib
 
         private static void AppendDescription(StringBuilder dsc, string effectId, EffectContext ctx)
         {
-            foreach (KeyValuePair<string, float> stat in ctx.StatModifiers)
-            {
-                string label = EffectLang.GetIfExists(effectId, stat.Key) ?? stat.Key;
-                dsc.AppendLine($"{label}: {stat.Value * 100:+0.#;-0.#}%");
-            }
-
-            if (Math.Abs(ctx.Health) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:health") + ": " + ctx.Health.ToString("+0.#;-0.#"));
-            if (ctx.GlowStrength > 0)
-                dsc.AppendLine(Lang.Get("effectlib:glow"));
-            if (ctx.WaterBreathe)
-                dsc.AppendLine(Lang.Get("effectlib:waterbreathe"));
-            if (ctx.ColdResist)
-                dsc.AppendLine(Lang.Get("effectlib:coldresist"));
-            if (ctx.CanFly)
-                dsc.AppendLine(Lang.Get("effectlib:flight"));
-            if (ctx.NoGravity)
-                dsc.AppendLine(Lang.Get("effectlib:nogravity"));
-            if (ctx.CanClimbAnywhere)
-                dsc.AppendLine(Lang.Get("effectlib:climb"));
-            if (ctx.DisableClimbing)
-                dsc.AppendLine(Lang.Get("effectlib:noclimb"));
-            if (ctx.NoFallDamage)
-                dsc.AppendLine(Lang.Get("effectlib:nofalldamage"));
-            if (ctx.FallDamageReduction > 0)
-                dsc.AppendLine(Lang.Get("effectlib:fall"));
-            if (Math.Abs(ctx.KnockbackResistance) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:knockbackresist"));
-            if (Math.Abs(ctx.ClimbTouchDistance) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:climbreach"));
-            if (Math.Abs(ctx.Weight) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:weight"));
-            if (ctx.Respawn)
-                dsc.AppendLine(Lang.Get("effectlib:respawn"));
-            if (ctx.Reshape)
-                dsc.AppendLine(Lang.Get("effectlib:reshape"));
-            if (Math.Abs(ctx.RetainedNutrition) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:nutrition"));
-            if (Math.Abs(ctx.TemporalStabilityGain) > float.Epsilon)
-                dsc.AppendLine(Lang.Get("effectlib:temporalstability"));
-            if (ctx.SizeChange > 0)
-                dsc.AppendLine(Lang.Get("effectlib:grow"));
-            if (ctx.SizeChange < 0)
-                dsc.AppendLine(Lang.Get("effectlib:shrink"));
-            if (ctx.ResetsEffects)
-                dsc.AppendLine(Lang.Get("effectlib:purge"));
-
-            if (ctx.IsEndless)
-                dsc.AppendLine(Lang.Get("effectlib:duration-endless"));
-            else if (ctx.Duration > 0)
-                dsc.AppendLine(Lang.Get("effectlib:duration", ctx.Duration));
+            foreach (string line in EffectDescription.Lines(effectId, ctx))
+                dsc.AppendLine(line);
         }
     }
 }

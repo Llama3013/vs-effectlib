@@ -12,6 +12,8 @@ namespace EffectLib
 
         public float PotencyMul { get; set; }
 
+        public float DurationMul { get; set; } = 1f;
+
         public int Duration { get; set; }
 
         public bool IsEndless => Duration == EndlessDuration;
@@ -21,6 +23,11 @@ namespace EffectLib
         public bool ReplaceIfActive { get; set; }
 
         public string ExclusivityGroup { get; set; }
+
+        public bool Notify { get; set; } = true;
+
+        // The item whose definition built this context, if any - see EffectRegistry.Build.
+        public AssetLocation Source { get; set; }
 
         public List<string> ResetDomains { get; } = [];
 
@@ -45,6 +52,7 @@ namespace EffectLib
         public bool BlockRecallOnMount { get; set; }
         public bool BlockReshapeReentry { get; set; } = true;
         public float SizeChange { get; set; }
+        public float SizeOffset { get; set; }
 
         public float SizeMinHeight { get; set; }
         public float SizeMaxHeight { get; set; }

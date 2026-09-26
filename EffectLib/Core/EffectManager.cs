@@ -44,6 +44,9 @@ namespace EffectLib
             group != null
             && active.Any(pair => pair.Key != exceptId && pair.Value.Effect.Context.ExclusivityGroup == group);
 
+        public AssetLocation SourceOf(string id) =>
+            active.TryGetValue(id, out ActiveEffect activeEffect) ? activeEffect.Effect.Context.Source : null;
+
         public bool HasAnyActive => active.Count > 0;
 
         public IReadOnlyCollection<string> ActiveIds => active.Keys;
@@ -186,7 +189,7 @@ namespace EffectLib
             if (!active.TryGetValue(id, out ActiveEffect activeEffect))
                 return;
 
-            if (notify)
+            if (notify && activeEffect.Effect.Context.Notify)
             {
                 IServerPlayer serverPlayer = entity?.Player as IServerPlayer;
                 serverPlayer?.SendMessage(
@@ -318,12 +321,25 @@ namespace EffectLib
             {
                 foreach (string id in tree.Select(pair => pair.Key).ToList())
                 {
+                    // Carry effects are re-derived from the inventory by the next scan instead.
+                    if (CarryEffectIds.Is(id))
+                    {
+                        tree.RemoveAttribute(id);
+                        continue;
+                    }
+
                     ITreeAttribute record = tree.GetTreeAttribute(id);
                     int remainingSec = record?.GetInt("remainingSec") ?? 0;
                     bool endless = remainingSec == EffectContext.EndlessDuration;
+                    string source = record?.GetString("source");
                     EffectContext ctx =
                         remainingSec > 0 || endless
-                            ? EffectRegistry.Build(id, record.GetFloat("strengthMul", 1f))
+                            ? EffectRegistry.Build(
+                                id,
+                                record.GetFloat("strengthMul", 1f),
+                                string.IsNullOrEmpty(source) ? null : new AssetLocation(source),
+                                record.GetFloat("durationMul", 1f)
+                            )
                             : null;
 
                     if (ctx == null)
@@ -420,6 +436,8 @@ namespace EffectLib
             float knockbackResistance = 0f;
             float climbTouchDistance = 0f;
             float weight = 0f;
+            float sizeOffset = 0f;
+            bool allowResize = EffectPolicy.IsAllowed(EffectCapability.Resize);
 
             foreach (ActiveEffect activeEffect in active.Values)
             {
@@ -439,6 +457,8 @@ namespace EffectLib
                 if (allowClimb)
                     climbTouchDistance += ctx.ClimbTouchDistance;
                 weight += ctx.Weight;
+                if (allowResize)
+                    sizeOffset += ctx.SizeOffset;
             }
 
             SetEffectBool(EffectAttr.WaterBreathe, waterBreathe);
@@ -466,6 +486,7 @@ namespace EffectLib
                 () => entity.Properties.ClimbTouchDistance,
                 value => entity.Properties.ClimbTouchDistance = value
             );
+            UtilityEffects.SetSizeOffset(entity, sizeOffset);
             SyncOffset(
                 ref baselineWeight,
                 weight,
@@ -619,8 +640,13 @@ namespace EffectLib
             ITreeAttribute record = tree.GetOrAddTreeAttribute(id);
             record.SetString("name", name ?? "");
             record.SetFloat("strengthMul", ctx.PotencyMul);
+            record.SetFloat("durationMul", ctx.DurationMul);
             record.SetInt("remainingSec", ctx.Duration);
             record.SetLong("appliedAt", entity.World.ElapsedMilliseconds);
+            if (ctx.Source != null)
+                record.SetString("source", ctx.Source.ToString());
+            else
+                record.RemoveAttribute("source");
             if (ctx.CanFly)
                 record.SetBool("origFreeMove", baselineFreeMove ?? false);
 

@@ -16,6 +16,7 @@ namespace EffectLib
         public const string KeyEffectId = "coatedPotionId";
         public const string KeyItemCode = "coatedItemCode";
         public const string KeyMultiplier = "coatMultiplier";
+        public const string KeyDurationMul = "coatDurationMul";
         public const string KeyCharges = "coatCharges";
 
         public static string ResolveDisplayName(string itemCodeOrLangKey, string fallback) =>
@@ -29,10 +30,26 @@ namespace EffectLib
             return $"{col.Code.Domain}:{typePrefix}-{col.Code.Path}";
         }
 
+        // Turns a DefaultItemCode lang code ("domain:item-path") back into the item's own code,
+        // so a coating builds from its source item's definition of the effect.
+        public static AssetLocation SourceFromItemCode(string itemCode)
+        {
+            if (string.IsNullOrEmpty(itemCode))
+                return null;
+
+            AssetLocation code = new(itemCode);
+            foreach (string prefix in new[] { "item-", "block-" })
+                if (code.Path.StartsWith(prefix, StringComparison.Ordinal))
+                    return new AssetLocation(code.Domain, code.Path[prefix.Length..]);
+
+            return null;
+        }
+
         public static void ReadWeaponCoat(
             ItemStack stack,
             out string effectId,
             out float multiplier,
+            out float durationMul,
             out int charges
         )
         {
@@ -43,12 +60,14 @@ namespace EffectLib
                     out string coEffectId,
                     out _,
                     out float coMultiplier,
+                    out float coDurationMul,
                     out int coCharges
                 )
             )
             {
                 effectId = coEffectId;
                 multiplier = coMultiplier;
+                durationMul = coDurationMul;
                 charges = coCharges;
                 return;
             }
@@ -56,6 +75,7 @@ namespace EffectLib
             ITreeAttribute attrs = stack.Attributes;
             effectId = attrs.GetString(KeyEffectId);
             multiplier = attrs.GetFloat(KeyMultiplier);
+            durationMul = attrs.GetFloat(KeyDurationMul, 1f);
             charges = attrs.GetInt(KeyCharges);
         }
 
@@ -64,12 +84,13 @@ namespace EffectLib
             string effectId,
             string itemCode,
             float multiplier,
+            float durationMul,
             int charges
         )
         {
             if (CombatOverhaulCompat.ShouldUseBuffStorage(slot.Itemstack.Collectible))
             {
-                CombatOverhaulCompat.SetCoating(slot, effectId, itemCode, multiplier, charges);
+                CombatOverhaulCompat.SetCoating(slot, effectId, itemCode, multiplier, durationMul, charges);
                 return;
             }
 
@@ -77,6 +98,7 @@ namespace EffectLib
             attrs.SetString(KeyEffectId, effectId);
             attrs.SetString(KeyItemCode, itemCode ?? "");
             attrs.SetFloat(KeyMultiplier, multiplier);
+            attrs.SetFloat(KeyDurationMul, durationMul);
             attrs.SetInt(KeyCharges, charges);
             slot.MarkDirty();
         }
@@ -84,7 +106,7 @@ namespace EffectLib
         public static bool HasProjectileCoat(ItemStack stack)
         {
             return CombatOverhaulCompat.ShouldUseProjectileBuffStorage(stack)
-                ? CombatOverhaulCompat.TryGetCoating(stack, out _, out _, out _, out _)
+                ? CombatOverhaulCompat.TryGetCoating(stack, out _, out _, out _, out _, out _)
                 : !string.IsNullOrEmpty(stack.Attributes.GetString(KeyEffectId));
         }
 
@@ -92,12 +114,13 @@ namespace EffectLib
             ItemStack stack,
             string effectId,
             string itemCode,
-            float multiplier
+            float multiplier,
+            float durationMul
         )
         {
             if (CombatOverhaulCompat.ShouldUseProjectileBuffStorage(stack))
             {
-                CombatOverhaulCompat.SetProjectileCoating(stack, effectId, itemCode, multiplier);
+                CombatOverhaulCompat.SetProjectileCoating(stack, effectId, itemCode, multiplier, durationMul);
                 return;
             }
 
@@ -105,6 +128,7 @@ namespace EffectLib
             attrs.SetString(KeyEffectId, effectId);
             attrs.SetString(KeyItemCode, itemCode ?? "");
             attrs.SetFloat(KeyMultiplier, multiplier);
+            attrs.SetFloat(KeyDurationMul, durationMul);
         }
 
         internal static void ClearStackCoat(ITreeAttribute attrs)
@@ -112,10 +136,11 @@ namespace EffectLib
             attrs.RemoveAttribute(KeyEffectId);
             attrs.RemoveAttribute(KeyItemCode);
             attrs.RemoveAttribute(KeyMultiplier);
+            attrs.RemoveAttribute(KeyDurationMul);
             attrs.RemoveAttribute(KeyCharges);
         }
 
-        internal static (string EffectId, float Multiplier, string ItemCode)? TryConsumeWeaponCharge(
+        internal static (string EffectId, float Multiplier, float DurationMul, string ItemCode)? TryConsumeWeaponCharge(
             ItemSlot slot
         )
         {
@@ -136,6 +161,7 @@ namespace EffectLib
                 return null;
 
             float multiplier = attrs.GetFloat(KeyMultiplier);
+            float durationMul = attrs.GetFloat(KeyDurationMul, 1f);
             string itemCode = attrs.GetString(KeyItemCode);
 
             charges--;
@@ -145,10 +171,10 @@ namespace EffectLib
                 attrs.SetInt(KeyCharges, charges);
             slot.MarkDirty();
 
-            return (effectId, multiplier, itemCode);
+            return (effectId, multiplier, durationMul, itemCode);
         }
 
-        internal static (string EffectId, float Multiplier, string ItemCode)? TryConsumeProjectileCoat(
+        internal static (string EffectId, float Multiplier, float DurationMul, string ItemCode)? TryConsumeProjectileCoat(
             ItemStack projectileStack
         )
         {
@@ -161,13 +187,32 @@ namespace EffectLib
                 return null;
 
             float multiplier = attrs.GetFloat(KeyMultiplier);
+            float durationMul = attrs.GetFloat(KeyDurationMul, 1f);
             string itemCode = attrs.GetString(KeyItemCode);
             ClearStackCoat(attrs);
 
-            return (effectId, multiplier, itemCode);
+            return (effectId, multiplier, durationMul, itemCode);
         }
 
-        public static void Apply(string effectId, Entity entity, float multiplier, string displayName)
+        public static void Apply(string effectId, Entity entity, float multiplier, string displayName) =>
+            Apply(effectId, entity, multiplier, displayName, null);
+
+        public static void Apply(
+            string effectId,
+            Entity entity,
+            float multiplier,
+            string displayName,
+            AssetLocation source
+        ) => Apply(effectId, entity, multiplier, displayName, source, 1f);
+
+        public static void Apply(
+            string effectId,
+            Entity entity,
+            float multiplier,
+            string displayName,
+            AssetLocation source,
+            float durationMul
+        )
         {
             if (entity == null || !entity.Alive)
                 return;
@@ -177,7 +222,8 @@ namespace EffectLib
             if (entity is EntityPlayer playerEntity)
             {
                 EffectManager manager = EntityBehaviorPlayerEffects.ManagerFor(playerEntity);
-                EffectContext ctx = manager == null ? null : EffectRegistry.Build(effectId, multiplier);
+                EffectContext ctx =
+                    manager == null ? null : EffectRegistry.Build(effectId, multiplier, source, durationMul);
                 if (ctx == null)
                     return;
 
@@ -204,7 +250,7 @@ namespace EffectLib
             }
             else if (entity is EntityAgent agent)
             {
-                EffectContext ctx = EffectRegistry.Build(effectId, multiplier);
+                EffectContext ctx = EffectRegistry.Build(effectId, multiplier, source, durationMul);
                 if (ctx == null)
                     return;
 

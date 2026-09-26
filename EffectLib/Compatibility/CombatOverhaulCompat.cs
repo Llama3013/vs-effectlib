@@ -17,10 +17,10 @@ namespace EffectLib
         internal static System.Func<ItemStack, bool> isCoManagedProjectile;
         internal static System.Func<
             ItemStack,
-            (string EffectId, string ItemCode, float Multiplier, int Charges)?
+            (string EffectId, string ItemCode, float Multiplier, float DurationMul, int Charges)?
         > getCoating;
-        internal static Action<ItemSlot, string, string, float, int> applyCoatingBuff;
-        internal static Action<ItemStack, string, string, float> applyProjectileCoatingBuff;
+        internal static Action<ItemSlot, string, string, float, float, int> applyCoatingBuff;
+        internal static Action<ItemStack, string, string, float, float> applyProjectileCoatingBuff;
         internal static Action shutdownImpl;
 
         private const string WeaponBuffSystemTypeName =
@@ -109,23 +109,25 @@ namespace EffectLib
             out string effectId,
             out string itemCode,
             out float multiplier,
+            out float durationMul,
             out int charges
         )
         {
             effectId = null;
             itemCode = null;
             multiplier = 0f;
+            durationMul = 1f;
             charges = 0;
 
             if (!Active || stack == null)
                 return false;
 
-            (string EffectId, string ItemCode, float Multiplier, int Charges)? coating =
+            (string EffectId, string ItemCode, float Multiplier, float DurationMul, int Charges)? coating =
                 getCoating?.Invoke(stack);
             if (coating == null)
                 return false;
 
-            (effectId, itemCode, multiplier, charges) = coating.Value;
+            (effectId, itemCode, multiplier, durationMul, charges) = coating.Value;
             return !string.IsNullOrEmpty(effectId);
         }
 
@@ -134,12 +136,13 @@ namespace EffectLib
             string effectId,
             string itemCode,
             float multiplier,
+            float durationMul,
             int charges
         )
         {
             if (!Active)
                 return;
-            applyCoatingBuff?.Invoke(slot, effectId, itemCode, multiplier, charges);
+            applyCoatingBuff?.Invoke(slot, effectId, itemCode, multiplier, durationMul, charges);
         }
 
         public static bool ShouldUseProjectileBuffStorage(ItemStack stack)
@@ -151,12 +154,13 @@ namespace EffectLib
             ItemStack stack,
             string effectId,
             string itemCode,
-            float multiplier
+            float multiplier,
+            float durationMul
         )
         {
             if (!Active)
                 return;
-            applyProjectileCoatingBuff?.Invoke(stack, effectId, itemCode, multiplier);
+            applyProjectileCoatingBuff?.Invoke(stack, effectId, itemCode, multiplier, durationMul);
         }
 
         private static void HookAssemblyResolve()
@@ -216,22 +220,22 @@ namespace EffectLib
                 );
             getCoating = (System.Func<
                 ItemStack,
-                (string EffectId, string ItemCode, float Multiplier, int Charges)?
+                (string EffectId, string ItemCode, float Multiplier, float DurationMul, int Charges)?
             >)
                 Delegate.CreateDelegate(
-                    typeof(System.Func<ItemStack, (string, string, float, int)?>),
+                    typeof(System.Func<ItemStack, (string, string, float, float, int)?>),
                     entry.GetMethod("GetCoating")
                 );
             applyCoatingBuff =
-                (Action<ItemSlot, string, string, float, int>)
+                (Action<ItemSlot, string, string, float, float, int>)
                     Delegate.CreateDelegate(
-                        typeof(Action<ItemSlot, string, string, float, int>),
+                        typeof(Action<ItemSlot, string, string, float, float, int>),
                         entry.GetMethod("ApplyCoatingBuff")
                     );
             applyProjectileCoatingBuff =
-                (Action<ItemStack, string, string, float>)
+                (Action<ItemStack, string, string, float, float>)
                     Delegate.CreateDelegate(
-                        typeof(Action<ItemStack, string, string, float>),
+                        typeof(Action<ItemStack, string, string, float, float>),
                         entry.GetMethod("ApplyProjectileCoatingBuff")
                     );
             shutdownImpl = (Action)
@@ -250,7 +254,17 @@ namespace EffectLib
                         (System.Func<bool>)CoatingPolicy.AllowCoating,
                         (System.Func<float>)CoatingPolicy.EffectMultiplier,
                         (System.Func<string, bool>)CoatingPolicy.IsEffectCoatable,
-                        (System.Action<string, Entity, float, string>)CoatedEffects.Apply,
+                        (System.Action<string, Entity, float, float, string, string>)(
+                            (effectId, target, multiplier, durationMul, displayName, itemCode) =>
+                                CoatedEffects.Apply(
+                                    effectId,
+                                    target,
+                                    multiplier,
+                                    displayName,
+                                    CoatedEffects.SourceFromItemCode(itemCode),
+                                    durationMul
+                                )
+                        ),
                         (System.Func<string, string, object[], string>)EffectLang.Get,
                     ]
                 );

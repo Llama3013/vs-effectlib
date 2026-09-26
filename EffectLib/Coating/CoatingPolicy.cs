@@ -24,7 +24,7 @@ namespace EffectLib
 
         public System.Func<string, bool> IsEffectCoatable { get; init; }
 
-        public System.Func<ItemStack, (string EffectId, float PotencyMul)?> ResolveLiquidEffect { get; init; }
+        public System.Func<ItemStack, (string EffectId, float PotencyMul, float DurationMul)?> ResolveLiquidEffect { get; init; }
 
         public Action<string, Entity, float> ApplySideEffects { get; init; }
 
@@ -71,7 +71,7 @@ namespace EffectLib
 
         public static float BarrelCheckLitres() => config.BarrelCheckLitres?.Invoke() ?? 0.24f;
 
-        public static (string EffectId, float PotencyMul)? ResolveLiquidEffect(ItemStack stack) =>
+        public static (string EffectId, float PotencyMul, float DurationMul)? ResolveLiquidEffect(ItemStack stack) =>
             (config.ResolveLiquidEffect ?? DefaultResolveLiquidEffect)(stack);
 
         public static void ApplySideEffects(string effectId, Entity target, float multiplier) =>
@@ -121,21 +121,21 @@ namespace EffectLib
             return codes.Length > 0 && WildcardUtil.Match(codes, col.Code.ToString());
         }
 
-        private static (string EffectId, float PotencyMul)? DefaultResolveLiquidEffect(ItemStack stack)
+        private static (string EffectId, float PotencyMul, float DurationMul)? DefaultResolveLiquidEffect(ItemStack stack)
         {
             CollectibleObject content = stack?.Collectible;
             JsonObject def = content?.Attributes?["effectinfo"];
             if (def?.Exists != true)
                 return null;
 
-            string effectId = def["effectId"].AsString()?.ToLowerInvariant();
+            string effectId = EffectIds.Read(def, "effectId", content);
             if (string.IsNullOrWhiteSpace(effectId))
                 return null;
 
-            if (!EffectRegistry.IsRegistered(effectId))
+            if (!EffectRegistry.IsRegistered(effectId, content.Code))
                 JsonEffectDefinition.RegisterFrom(effectId, content.Code.Domain, def, content.Code);
 
-            return (effectId, 1f);
+            return (effectId, 1f, 1f);
         }
     }
 }

@@ -27,11 +27,13 @@ namespace EffectLib
         protected override bool TryResolveEffect(
             ItemStack sourceStack,
             out string effectId,
-            out float potencyMul
+            out float potencyMul,
+            out float durationMul
         )
         {
             effectId = null;
             potencyMul = 1f;
+            durationMul = 1f;
 
             CollectibleObject content = sourceStack?.Collectible;
             if (content == null)
@@ -41,14 +43,14 @@ namespace EffectLib
             if (def?.Exists != true)
                 return false;
 
-            effectId = def[idField].AsString()?.ToLowerInvariant();
+            effectId = EffectIds.Read(def, idField, content);
             if (string.IsNullOrWhiteSpace(effectId))
             {
                 effectId = null;
                 return false;
             }
 
-            if (!EffectRegistry.IsRegistered(effectId))
+            if (!EffectRegistry.IsRegistered(effectId, content.Code))
                 JsonEffectDefinition.RegisterFrom(effectId, content.Code.Domain, def, content.Code);
 
             return true;

@@ -19,12 +19,11 @@ namespace EffectLib
             if (itemSlot?.Itemstack == null || liquidSlot?.Itemstack == null)
                 return false;
 
-            (string effectId, float potencyMul)? resolved = CoatingPolicy.ResolveLiquidEffect(
-                liquidSlot.Itemstack
-            );
+            (string effectId, float potencyMul, float durationMul)? resolved =
+                CoatingPolicy.ResolveLiquidEffect(liquidSlot.Itemstack);
             if (resolved == null)
                 return false;
-            (string effectId, float potencyMul) = resolved.Value;
+            (string effectId, float potencyMul, float durationMul) = resolved.Value;
             if (string.IsNullOrEmpty(effectId) || !CoatingPolicy.IsEffectCoatable(effectId))
                 return false;
 
@@ -55,8 +54,8 @@ namespace EffectLib
             try
             {
                 return isProjectile
-                    ? CoatArrows(itemSlot, liquidSlot, props, availableLitres, consumeLitres, checkLitres, effectId, itemCode, coatMultiplier)
-                    : CoatWeapon(itemSlot, liquidSlot, props, availableLitres, consumeLitres, checkLitres, effectId, itemCode, coatMultiplier);
+                    ? CoatArrows(itemSlot, liquidSlot, props, availableLitres, consumeLitres, checkLitres, effectId, itemCode, coatMultiplier, durationMul)
+                    : CoatWeapon(itemSlot, liquidSlot, props, availableLitres, consumeLitres, checkLitres, effectId, itemCode, coatMultiplier, durationMul);
             }
             finally
             {
@@ -73,14 +72,25 @@ namespace EffectLib
             float checkLitres,
             string effectId,
             string itemCode,
-            float coatMultiplier
+            float coatMultiplier,
+            float durationMul
         )
         {
-            CoatedEffects.ReadWeaponCoat(itemSlot.Itemstack, out string existingId, out float existingMultiplier, out int charges);
+            CoatedEffects.ReadWeaponCoat(
+                itemSlot.Itemstack,
+                out string existingId,
+                out float existingMultiplier,
+                out float existingDurationMul,
+                out int charges
+            );
 
             if (
                 !string.IsNullOrEmpty(existingId)
-                && (existingId != effectId || Math.Abs(existingMultiplier - coatMultiplier) > 0.001f)
+                && (
+                    existingId != effectId
+                    || Math.Abs(existingMultiplier - coatMultiplier) > 0.001f
+                    || Math.Abs(existingDurationMul - durationMul) > 0.001f
+                )
             )
                 return false;
 
@@ -100,7 +110,7 @@ namespace EffectLib
                 return false;
 
             ConsumeLitres(liquidSlot, props, consumeLitres * chargesToAdd);
-            CoatedEffects.WriteWeaponCoat(itemSlot, effectId, itemCode, coatMultiplier, charges + chargesToAdd);
+            CoatedEffects.WriteWeaponCoat(itemSlot, effectId, itemCode, coatMultiplier, durationMul, charges + chargesToAdd);
             return true;
         }
 
@@ -113,7 +123,8 @@ namespace EffectLib
             float checkLitres,
             string effectId,
             string itemCode,
-            float coatMultiplier
+            float coatMultiplier,
+            float durationMul
         )
         {
             if (CoatedEffects.HasProjectileCoat(itemSlot.Itemstack))
@@ -124,7 +135,7 @@ namespace EffectLib
                 return false;
 
             ConsumeLitres(liquidSlot, props, consumeLitres * stackSize);
-            CoatedEffects.WriteProjectileCoat(itemSlot.Itemstack, effectId, itemCode, coatMultiplier);
+            CoatedEffects.WriteProjectileCoat(itemSlot.Itemstack, effectId, itemCode, coatMultiplier, durationMul);
             itemSlot.MarkDirty();
             return true;
         }

@@ -19,6 +19,10 @@ namespace EffectLib
                 UtilityEffects.SizeDeltaAttr,
                 () => UtilityEffects.ApplySizeToEntity(player)
             );
+            player.WatchedAttributes.RegisterModifiedListener(
+                UtilityEffects.SizeOffsetAttr,
+                () => UtilityEffects.ApplySizeToEntity(player)
+            );
         }
     }
 }

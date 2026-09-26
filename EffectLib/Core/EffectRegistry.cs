@@ -26,6 +26,15 @@ namespace EffectLib
             StringComparer.OrdinalIgnoreCase
         );
 
+        // Each item keeps its own definition of an effect id, keyed "effectId|itemCode" - the id
+        // says which effects are the same effect (they never stack), the item says how strong it
+        // is. entries holds the id's default (last registered), for when no item is known.
+        private static readonly ConcurrentDictionary<string, EffectRegistration> bySource = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        private static string SourceKey(string effectId, AssetLocation source) => $"{effectId}|{source}";
+
         public static IReadOnlyDictionary<string, EffectRegistration> Registrations => entries;
 
         private static readonly HashSet<string> reserved = new(StringComparer.OrdinalIgnoreCase);
@@ -53,21 +62,28 @@ namespace EffectLib
             if (string.IsNullOrWhiteSpace(effectId) || builder == null)
                 return;
 
+            domain = string.IsNullOrWhiteSpace(domain) ? DefaultDomain : domain;
+            effectId = EffectIds.Qualify(effectId, domain);
+
             if (reserved.Contains(effectId))
                 return;
 
             HashSet<string> channelSet =
                 channels == null ? null : new HashSet<string>(channels, StringComparer.OrdinalIgnoreCase);
 
-            entries[effectId] = new EffectRegistration(
+            EffectRegistration registration = new(
                 effectId,
-                string.IsNullOrWhiteSpace(domain) ? DefaultDomain : domain,
+                domain,
                 builder,
                 iconSource,
                 channelSet is { Count: > 0 } ? channelSet : null,
                 string.IsNullOrWhiteSpace(exclusivityGroup) ? null : exclusivityGroup,
                 iconTexture
             );
+
+            entries[effectId] = registration;
+            if (iconSource != null)
+                bySource[SourceKey(effectId, iconSource)] = registration;
         }
 
         private static readonly List<System.Func<string, EffectRegistration>> resolvers = [];
@@ -99,13 +115,27 @@ namespace EffectLib
             return null;
         }
 
+        private static EffectRegistration Resolve(string effectId, AssetLocation source) =>
+            source != null
+            && effectId != null
+            && bySource.TryGetValue(SourceKey(effectId, source), out EffectRegistration entry)
+                ? entry
+                : Resolve(effectId);
+
         public static bool IsRegistered(string effectId) => Resolve(effectId) != null;
+
+        // Whether this particular item has registered its own definition of the effect.
+        public static bool IsRegistered(string effectId, AssetLocation source) =>
+            source != null && effectId != null && bySource.ContainsKey(SourceKey(effectId, source));
 
         public static string DomainOf(string effectId) => Resolve(effectId)?.Domain ?? DefaultDomain;
 
         public static AssetLocation IconSourceOf(string effectId) => Resolve(effectId)?.IconSource;
 
         public static AssetLocation IconTextureOf(string effectId) => Resolve(effectId)?.IconTexture;
+
+        public static AssetLocation IconTextureOf(string effectId, AssetLocation source) =>
+            Resolve(effectId, source)?.IconTexture;
 
         public static bool AllowsChannel(string effectId, string channel)
         {
@@ -118,15 +148,38 @@ namespace EffectLib
 
         public static string GroupOf(string effectId) => Resolve(effectId)?.ExclusivityGroup;
 
-        public static EffectContext Build(string effectId, float potencyMul)
+        public static EffectContext Build(string effectId, float potencyMul) =>
+            Build(effectId, potencyMul, null);
+
+        public static EffectContext Build(string effectId, float potencyMul, AssetLocation source) =>
+            Build(effectId, potencyMul, source, 1f);
+
+        // Uses source's own definition of the effect if it registered one, else the id's default.
+        public static EffectContext Build(
+            string effectId,
+            float potencyMul,
+            AssetLocation source,
+            float durationMul
+        )
         {
-            EffectRegistration entry = Resolve(effectId);
+            EffectRegistration entry = Resolve(effectId, source);
             if (entry == null)
                 return null;
 
-            EffectContext def = new() { PotencyMul = potencyMul, ExclusivityGroup = entry.ExclusivityGroup };
+            EffectContext def = new()
+            {
+                PotencyMul = potencyMul,
+                DurationMul = durationMul,
+                ExclusivityGroup = entry.ExclusivityGroup,
+                Source = entry.IconSource,
+            };
 
             entry.Builder(def);
+
+            // Timed only; instant (0) and endless (-1) untouched.
+            if (def.Duration > 0 && Math.Abs(durationMul - 1f) > 0.001f)
+                def.Duration = Math.Max(1, (int)Math.Round(def.Duration * durationMul));
+
             return def;
         }
     }

@@ -36,7 +36,7 @@ namespace EffectLib
             if (def?.Exists != true)
                 return;
 
-            ownEffectId = def[idField].AsString()?.ToLowerInvariant();
+            ownEffectId = EffectIds.Read(def, idField, collObj);
             if (string.IsNullOrWhiteSpace(ownEffectId))
             {
                 Api.Logger.Warning(
@@ -61,11 +61,13 @@ namespace EffectLib
         protected virtual bool TryResolveEffect(
             ItemStack sourceStack,
             out string effectId,
-            out float potencyMul
+            out float potencyMul,
+            out float durationMul
         )
         {
             effectId = ownEffectId;
             potencyMul = 1f;
+            durationMul = 1f;
             return effectId != null;
         }
 
@@ -81,7 +83,7 @@ namespace EffectLib
         public void CoatingIdle(ItemSlot slot, EntityAgent byEntity)
         {
             ItemStack sourceStack = GetSourceStack(slot);
-            TryResolveEffect(sourceStack, out string effectId, out float potencyMul);
+            TryResolveEffect(sourceStack, out string effectId, out float potencyMul, out float durationMul);
             string itemCode = CoatedEffects.DefaultItemCode(sourceStack?.Collectible);
 
             CoatingInteraction.HandleIdle(
@@ -90,6 +92,7 @@ namespace EffectLib
                 byEntity,
                 effectId,
                 potencyMul,
+                durationMul,
                 itemCode,
                 s => HasEnoughSource(s) && ConsumeSource(s, byEntity),
                 GetConsumeTime()

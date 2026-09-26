@@ -26,7 +26,8 @@ namespace EffectLib
         public string CoatableWeaponTags { get; set; } = "weapon-melee";
         public string CoatableProjectilesCodes { get; set; } = "*arrow*";
 
-        public float CarryDirtyCheckIntervalSec { get; set; } = 0.5f;
+        // How long the hotbar/inventory must stay unchanged before carried items are re-checked.
+        public float CarryScanDelaySec { get; set; } = 0.5f;
 
         public float CarrySafetyNetIntervalSec { get; set; } = 20f;
 

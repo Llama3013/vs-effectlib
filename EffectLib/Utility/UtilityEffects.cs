@@ -16,6 +16,7 @@ namespace EffectLib
         public const float DefaultMaxHeight = 10f;
 
         public const string SizeDeltaAttr = "effectlib:sizeDelta";
+        public const string SizeOffsetAttr = "effectlib:sizeOffset";
 
         private const string KeyBaseHeight = "effectlib:baseHeight";
         private const string KeyBaseWidth = "effectlib:baseWidth";
@@ -50,7 +51,9 @@ namespace EffectLib
             if (Math.Abs(ctx.SizeChange) <= float.Epsilon)
                 return false;
 
-            float currentIntent = entity.WatchedAttributes.GetFloat(SizeDeltaAttr, 0f);
+            float currentIntent =
+                entity.WatchedAttributes.GetFloat(SizeDeltaAttr, 0f)
+                + entity.WatchedAttributes.GetFloat(SizeOffsetAttr, 0f);
             float baseHeight = ResolveBaseHeight(entity);
             (float min, float max) = EffectiveSizeBounds(ctx);
             float currentHeight = GameMath.Clamp(baseHeight + currentIntent, min, max);
@@ -64,6 +67,32 @@ namespace EffectLib
                 return false;
 
             float currentIntent = entity.WatchedAttributes.GetFloat(SizeDeltaAttr, 0f);
+            EnsureBaseSize(entity);
+            if (Math.Abs(currentIntent) < 0.001f)
+                entity.WatchedAttributes.SetString(KeySizeDomain, domain ?? LegacyDomain);
+
+            entity.WatchedAttributes.SetFloat(SizeDeltaAttr, currentIntent + ctx.SizeChange);
+            entity.WatchedAttributes.MarkPathDirty(SizeDeltaAttr);
+            return true;
+        }
+
+        public static void SetSizeOffset(EntityPlayer entity, float offset)
+        {
+            float current = entity.WatchedAttributes.GetFloat(SizeOffsetAttr, 0f);
+            if (Math.Abs(current - offset) < 0.0001f)
+                return;
+
+            if (Math.Abs(offset) > float.Epsilon)
+                EnsureBaseSize(entity);
+
+            entity.WatchedAttributes.SetFloat(SizeOffsetAttr, offset);
+            entity.WatchedAttributes.MarkPathDirty(SizeOffsetAttr);
+        }
+
+        // Records the player's natural size before the first size change, for everything else
+        // to scale from and reset to.
+        private static void EnsureBaseSize(EntityPlayer entity)
+        {
             if (entity.WatchedAttributes.GetFloat(KeyBaseHeight, 0f) < 0.1f)
             {
                 float naturalHeight = entity.CollisionBox.Y2;
@@ -88,13 +117,7 @@ namespace EffectLib
                         entity.WatchedAttributes.GetFloat("entitySize", 1.0f)
                     );
                 }
-
-                entity.WatchedAttributes.SetString(KeySizeDomain, domain ?? LegacyDomain);
             }
-
-            entity.WatchedAttributes.SetFloat(SizeDeltaAttr, currentIntent + ctx.SizeChange);
-            entity.WatchedAttributes.MarkPathDirty(SizeDeltaAttr);
-            return true;
         }
 
         public static void ResetSizeIfCovered(EntityPlayer entity, EffectPurge scope)
@@ -154,7 +177,9 @@ namespace EffectLib
             if (baseHeight < 0.1f)
                 return;
 
-            float sizeDelta = entity.WatchedAttributes.GetFloat(SizeDeltaAttr, 0f);
+            float sizeDelta =
+                entity.WatchedAttributes.GetFloat(SizeDeltaAttr, 0f)
+                + entity.WatchedAttributes.GetFloat(SizeOffsetAttr, 0f);
             float baseEyeHeight = entity.WatchedAttributes.GetFloat(
                 KeyBaseEyeHeight,
                 baseHeight * 0.9054f

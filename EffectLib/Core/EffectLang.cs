@@ -43,6 +43,11 @@ namespace EffectLib
 
         public static string Name(string effectId) => NameIfExists(effectId) ?? effectId;
 
+        // The effect id's lang entry if a modder gave it one, otherwise a plain list of what
+        // this context does
+        public static string NameFor(string effectId, EffectContext ctx) =>
+            NameIfExists(effectId) ?? EffectDescription.Summary(effectId, ctx) ?? effectId;
+
         public static string GetIfExists(string effectId, string key)
         {
             string domain = EffectRegistry.DomainOf(effectId);

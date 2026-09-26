@@ -21,19 +21,24 @@ namespace EffectLib
 
         protected override void RegisterOwnEffect() { }
 
+        private CollectibleObject ContentOf(ItemSlot slot) =>
+            (collObj as BlockLiquidContainerBase)?.GetContent(slot?.Itemstack)?.Collectible;
+
+        protected override AssetLocation GetEffectSource(ItemSlot slot) => ContentOf(slot)?.Code;
+
         protected override bool TryResolveEffect(
             ItemSlot slot,
             EntityAgent byEntity,
             out string effectId,
-            out float potencyMul
+            out float potencyMul,
+            out float durationMul
         )
         {
             effectId = null;
             potencyMul = 1f;
+            durationMul = 1f;
 
-            CollectibleObject content = (
-                collObj as BlockLiquidContainerBase
-            )?.GetContent(slot.Itemstack)?.Collectible;
+            CollectibleObject content = ContentOf(slot);
             if (content == null)
                 return false;
 
@@ -41,14 +46,14 @@ namespace EffectLib
             if (def?.Exists != true)
                 return false;
 
-            effectId = def[idField].AsString()?.ToLowerInvariant();
+            effectId = EffectIds.Read(def, idField, content);
             if (string.IsNullOrWhiteSpace(effectId))
             {
                 effectId = null;
                 return false;
             }
 
-            if (!EffectRegistry.IsRegistered(effectId))
+            if (!EffectRegistry.IsRegistered(effectId, content.Code))
                 JsonEffectDefinition.RegisterFrom(effectId, content.Code.Domain, def, content.Code);
 
             return true;

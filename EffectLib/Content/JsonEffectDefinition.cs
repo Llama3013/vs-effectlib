@@ -8,7 +8,8 @@ namespace EffectLib
 {
     public static class JsonEffectDefinition
     {
-        public static void Apply(EffectContext ctx, JsonObject def)
+        // domain qualifies plain ids in resetEffectIds - the declaring item's mod, see EffectIds.
+        public static void Apply(EffectContext ctx, JsonObject def, string domain = null)
         {
             if (ctx == null || def == null)
                 return;
@@ -27,7 +28,7 @@ namespace EffectLib
             string[] resetEffectIds = def["resetEffectIds"].AsArray<string>(null);
             if (resetEffectIds != null)
                 ctx.ResetEffectIds.AddRange(
-                    resetEffectIds.Where(id => !string.IsNullOrWhiteSpace(id))
+                    resetEffectIds.Select(id => EffectIds.Qualify(id, domain)).Where(id => id != null)
                 );
 
             Dictionary<string, float> stats = def["stats"]
@@ -78,11 +79,64 @@ namespace EffectLib
             ctx.NoGravity = def["noGravity"].AsBool();
         }
 
+        // Reads a behavior's own effect definition attribute and its id, warning when either is
+        // missing.
+        public static bool TryReadOwn(
+            CollectibleObject collObj,
+            string attributeKey,
+            string idField,
+            string behaviorName,
+            ILogger logger,
+            out JsonObject def,
+            out string effectId
+        )
+        {
+            effectId = null;
+            def = collObj.Attributes?[attributeKey];
+            if (def?.Exists != true)
+            {
+                logger.Warning(
+                    "[EffectLib] {0} has the {1} behavior but no '{2}' attribute, so it "
+                        + "will do nothing.",
+                    collObj.Code,
+                    behaviorName,
+                    attributeKey
+                );
+                return false;
+            }
+
+            effectId = EffectIds.Qualify(def[idField].AsString(), collObj.Code.Domain);
+            if (string.IsNullOrWhiteSpace(effectId))
+            {
+                logger.Warning(
+                    "[EffectLib] {0}'s '{1}' attribute has no '{2}' - give it one, e.g. "
+                        + "\"{1}\": {{ \"{2}\": \"{3}:youreffectid\", ... }}. This item will do nothing.",
+                    collObj.Code,
+                    attributeKey,
+                    idField,
+                    collObj.Code.Domain
+                );
+                effectId = null;
+                return false;
+            }
+
+            return true;
+        }
+
         public static void RegisterFrom(
             string effectId,
             string domain,
             JsonObject def,
             AssetLocation iconSource = null
+        ) => RegisterFrom(effectId, domain, def, iconSource, null);
+
+        // afterApply runs on every built context, after the JSON definition has been applied.
+        public static void RegisterFrom(
+            string effectId,
+            string domain,
+            JsonObject def,
+            AssetLocation iconSource,
+            EffectBuilder afterApply
         )
         {
             JsonObject definition = def;
@@ -96,7 +150,11 @@ namespace EffectLib
 
             EffectRegistry.Register(
                 effectId,
-                ctx => Apply(ctx, definition),
+                ctx =>
+                {
+                    Apply(ctx, definition, domain);
+                    afterApply?.Invoke(ctx);
+                },
                 domain,
                 iconSource,
                 channels,

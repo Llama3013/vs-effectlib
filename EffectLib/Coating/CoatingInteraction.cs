@@ -19,6 +19,7 @@ namespace EffectLib
             EntityAgent byEntity,
             string effectId,
             float potencyMul,
+            float durationMul,
             string itemCode,
             System.Func<ItemSlot, bool> consumeSource,
             float consumeTime
@@ -39,7 +40,7 @@ namespace EffectLib
                 return;
             }
 
-            HandleServerCoating(coatSlot, byEntity, effectId, potencyMul, eligible, itemCode, consumeSource, consumeTime);
+            HandleServerCoating(coatSlot, byEntity, effectId, potencyMul, durationMul, eligible, itemCode, consumeSource, consumeTime);
         }
 
         private static void HandleClientAnimation(EntityAgent byEntity, string effectId, bool eligible)
@@ -64,7 +65,7 @@ namespace EffectLib
             }
             else
             {
-                CoatedEffects.ReadWeaponCoat(mainSlot.Itemstack, out _, out _, out int charges);
+                CoatedEffects.ReadWeaponCoat(mainSlot.Itemstack, out _, out _, out _, out int charges);
                 coatable = charges < CoatingPolicy.MaxCharges();
             }
 
@@ -77,6 +78,7 @@ namespace EffectLib
             EntityAgent byEntity,
             string effectId,
             float potencyMul,
+            float durationMul,
             bool eligible,
             string itemCode,
             System.Func<ItemSlot, bool> consumeSource,
@@ -137,6 +139,7 @@ namespace EffectLib
                 byEntity,
                 effectId,
                 CoatingPolicy.EffectMultiplier() * potencyMul,
+                durationMul,
                 itemCode,
                 consumeSource
             );
@@ -148,6 +151,7 @@ namespace EffectLib
             EntityAgent byEntity,
             string effectId,
             float coatMultiplier,
+            float durationMul,
             string itemCode,
             System.Func<ItemSlot, bool> consumeSource
         )
@@ -170,12 +174,14 @@ namespace EffectLib
 
             string existingId = null;
             float existingMultiplier = 0f;
+            float existingDurationMul = 1f;
             int existingCharges = 0;
             if (!isProjectile)
                 CoatedEffects.ReadWeaponCoat(
                     mainHandSlot.Itemstack,
                     out existingId,
                     out existingMultiplier,
+                    out existingDurationMul,
                     out existingCharges
                 );
 
@@ -183,7 +189,11 @@ namespace EffectLib
             {
                 if (
                     !string.IsNullOrEmpty(existingId)
-                    && (existingId != effectId || Math.Abs(existingMultiplier - coatMultiplier) > 0.001f)
+                    && (
+                        existingId != effectId
+                        || Math.Abs(existingMultiplier - coatMultiplier) > 0.001f
+                        || Math.Abs(existingDurationMul - durationMul) > 0.001f
+                    )
                 )
                 {
                     serverPlayer?.SendMessage(
@@ -222,7 +232,7 @@ namespace EffectLib
             if (isProjectile)
             {
                 ItemStack coatedArrow = mainHandSlot.TakeOut(1);
-                CoatedEffects.WriteProjectileCoat(coatedArrow, effectId, itemCode, coatMultiplier);
+                CoatedEffects.WriteProjectileCoat(coatedArrow, effectId, itemCode, coatMultiplier, durationMul);
                 mainHandSlot.MarkDirty();
 
                 if (!playerEntity.TryGiveItemStack(coatedArrow))
@@ -235,6 +245,7 @@ namespace EffectLib
                     effectId,
                     itemCode,
                     coatMultiplier,
+                    durationMul,
                     existingCharges + 1
                 );
             }

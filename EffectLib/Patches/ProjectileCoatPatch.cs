@@ -23,7 +23,7 @@ namespace EffectLib
             if (projectileStack == null)
                 return;
 
-            (string effectId, float multiplier, string itemCode)? consumed =
+            (string effectId, float multiplier, float durationMul, string itemCode)? consumed =
                 CoatedEffects.TryConsumeProjectileCoat(projectileStack);
             if (consumed == null)
                 return;
@@ -31,9 +31,16 @@ namespace EffectLib
             if (target == null || !target.Alive)
                 return;
 
-            (string effectId, float multiplier, string itemCode) = consumed.Value;
+            (string effectId, float multiplier, float durationMul, string itemCode) = consumed.Value;
             string displayName = CoatedEffects.ResolveDisplayName(itemCode, effectId);
-            CoatedEffects.Apply(effectId, target, multiplier, displayName);
+            CoatedEffects.Apply(
+                effectId,
+                target,
+                multiplier,
+                displayName,
+                CoatedEffects.SourceFromItemCode(itemCode),
+                durationMul
+            );
         }
     }
 

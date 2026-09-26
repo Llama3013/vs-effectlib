@@ -17,6 +17,7 @@ namespace EffectLib
         {
             public string Id;
             public string Name;
+            public AssetLocation Source;
             public long AppliedToken;
             public long ExpiryMs;
             public float PotencyMul;
@@ -121,6 +122,9 @@ namespace EffectLib
                     {
                         Id = pair.Key,
                         Name = record.GetString("name", ""),
+                        Source = record.HasAttribute("source")
+                            ? new AssetLocation(record.GetString("source"))
+                            : null,
                         AppliedToken = token,
                         Endless = endless,
                         ExpiryMs = endless ? long.MaxValue : ClientNowMs + remainingSec * 1000L,
@@ -300,7 +304,7 @@ namespace EffectLib
                     EffectRegistry.DefaultDomain,
                     "textures/hud/effects/" + (effect.Id == GrownRowId ? "grown" : "shrunk") + ".png"
                 )
-                : EffectRegistry.IconTextureOf(effect.Id);
+                : EffectRegistry.IconTextureOf(effect.Id, effect.Source);
 
             if (texLoc != null && capi.Assets.TryGet(texLoc) != null)
             {
@@ -309,7 +313,8 @@ namespace EffectLib
             }
 
             ItemStack stack =
-                StackFor(EffectRegistry.IconSourceOf(effect.Id)) ?? StackForEffectItem(effect.Id);
+                StackFor(effect.Source ?? EffectRegistry.IconSourceOf(effect.Id))
+                ?? StackForEffectItem(effect.Id);
             if (stack != null)
                 effect.IconSlot = new DummySlot(stack);
         }
@@ -337,7 +342,7 @@ namespace EffectLib
                     JsonObject def = coll?.Attributes?["effectinfo"];
                     if (def?.Exists != true)
                         continue;
-                    string id = def["effectId"].AsString()?.ToLowerInvariant();
+                    string id = EffectIds.Read(def, "effectId", coll);
                     if (!string.IsNullOrEmpty(id))
                         iconStacks.TryAdd(id, new ItemStack(coll));
                 }
@@ -383,7 +388,7 @@ namespace EffectLib
                 }
             }
 
-            EffectContext ctx = EffectRegistry.Build(effect.Id, effect.PotencyMul);
+            EffectContext ctx = EffectRegistry.Build(effect.Id, effect.PotencyMul, effect.Source);
             if (ctx != null)
             {
                 string healthTick = FormatHealthTick(effect.Id, ctx);
@@ -418,6 +423,10 @@ namespace EffectLib
                     );
                 if (Math.Abs(ctx.Weight) > float.Epsilon)
                     lines.Add($"{Label(effect.Id, "weight")}: {ctx.Weight:+0.#;-0.#;0}kg");
+                if (Math.Abs(ctx.SizeOffset) > float.Epsilon)
+                    lines.Add(
+                        $"{Label(effect.Id, ctx.SizeOffset > 0 ? "grow" : "shrink")}: {ctx.SizeOffset:+0.##;-0.##}"
+                    );
             }
 
             if (effect.ExtraLines != null)

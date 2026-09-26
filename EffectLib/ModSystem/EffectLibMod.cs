@@ -117,6 +117,7 @@ namespace EffectLib
             sapi = api;
 
             EffectHandlers.Register(UtilityEffectHandler.Instance);
+            EffectHandlers.Register(CarryRescanHandler.Instance);
 
             api.Event.PlayerNowPlaying += OnPlayerReady;
             api.Event.PlayerDisconnect += OnPlayerDisconnect;
@@ -173,7 +174,7 @@ namespace EffectLib
             EffectManager manager = EntityBehaviorPlayerEffects.ManagerFor(player?.Entity);
             manager?.RestoreEffects();
 
-            player?.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.HookCarryInventoryEvents();
+            player?.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.StartCarryTracking();
         }
 
         private static void OnPlayerDisconnect(IServerPlayer player)
@@ -183,21 +184,12 @@ namespace EffectLib
                 return;
 
             EntityBehaviorPlayerEffects behavior = entity.GetBehavior<EntityBehaviorPlayerEffects>();
-            behavior?.UnhookCarryInventoryEvents();
             behavior?.SuspendCarryEffects();
             behavior?.Manager?.Suspend();
         }
 
-        private static void OnActiveSlotChanged(IServerPlayer player, ActiveSlotChangeEventArgs args)
-        {
-            EntityPlayer entity = player?.Entity;
-            if (entity == null)
-                return;
-
-            // Ensures the behavior/manager exist even if this fires before PlayerNowPlaying does.
-            EntityBehaviorPlayerEffects.ManagerFor(entity);
-            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.MarkCarryDirty();
-        }
+        private static void OnActiveSlotChanged(IServerPlayer player, ActiveSlotChangeEventArgs args) =>
+            player?.Entity?.GetBehavior<EntityBehaviorPlayerEffects>()?.MarkCarryDirty();
 
         private static void OnPlayerDeath(IServerPlayer player, DamageSource damageSource)
         {
@@ -205,10 +197,7 @@ namespace EffectLib
             if (entity?.Properties == null || !entity.HasBehavior<EntityBehaviorPlayerEffects>())
                 return;
 
-            EntityBehaviorPlayerEffects behavior = entity.GetBehavior<EntityBehaviorPlayerEffects>();
-            behavior?.Manager?.ResetAll();
-
-            behavior?.MarkCarryDirty();
+            entity.GetBehavior<EntityBehaviorPlayerEffects>()?.Manager?.ResetAll();
         }
 
         public override void Dispose()
