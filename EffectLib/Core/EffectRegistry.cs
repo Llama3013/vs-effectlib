@@ -22,6 +22,12 @@ namespace EffectLib
     {
         public const string DefaultDomain = "effectlib";
 
+        internal static ILogger Logger { get; set; }
+
+        private static readonly ConcurrentDictionary<string, byte> warnedInstantStats = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
         private static readonly ConcurrentDictionary<string, EffectRegistration> entries = new(
             StringComparer.OrdinalIgnoreCase
         );
@@ -175,6 +181,20 @@ namespace EffectLib
             };
 
             entry.Builder(def);
+
+            // An instant effect shouldn't be used with stats
+            if (def.Duration == 0 && def.StatModifiers.Count > 0)
+            {
+                def.StatModifiers.Clear();
+                if (warnedInstantStats.TryAdd(SourceKey(entry.Id, entry.IconSource), 0))
+                    Logger?.Warning(
+                        "[EffectLib] Effect {0}{1} sets stats but has no duration, so it is instant and "
+                            + "its stats are ignored. Give it a \"duration\" (seconds, or -1 for until death) "
+                            + "to use them.",
+                        entry.Id,
+                        entry.IconSource == null ? "" : $" (from {entry.IconSource})"
+                    );
+            }
 
             // Timed only; instant (0) and endless (-1) untouched.
             if (def.Duration > 0 && Math.Abs(durationMul - 1f) > 0.001f)

@@ -161,6 +161,11 @@ namespace EffectLib
                 exclusivityGroup,
                 iconTexture
             );
+
+            // Build once now so definition problems (e.g. stats on an instant effect) are logged at
+            // load, not on first use. A reserved id wasn't registered, so there's nothing to check.
+            if (!EffectRegistry.IsReserved(effectId))
+                EffectRegistry.Build(effectId, 1f, iconSource);
         }
     }
 }

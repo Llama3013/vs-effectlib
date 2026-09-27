@@ -43,6 +43,7 @@ namespace EffectLib
         public override void Start(ICoreAPI api)
         {
             base.Start(api);
+            EffectRegistry.Logger = api.Logger;
             EffectPrimitives.RegisterAll();
 
             UtilityEffects.PlayerModelLibPresent = api.ModLoader.IsModEnabled("playermodellib");
