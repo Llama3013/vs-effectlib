@@ -483,8 +483,8 @@ namespace EffectLib
                 if (allowClimb)
                     climbTouchDistance += ctx.ClimbTouchDistance;
                 weight += ctx.Weight;
-                if (allowResize)
-                    sizeOffset += ctx.SizeOffset;
+                if (allowResize && !ctx.PermanentSize)
+                    sizeOffset += ctx.SizeChange;
             }
 
             SetEffectBool(EffectAttr.WaterBreathe, waterBreathe);

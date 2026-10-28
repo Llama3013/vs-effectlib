@@ -183,14 +183,11 @@ namespace EffectLib
                 JsonEffectDefinition.RegisterFrom(declaredId, collObj.Code.Domain, def, collObj.Code);
         }
 
-        // A size change lasts only while the item is carried. Other one-time effects would re-fire
-        // on every re-grant, and a purge would fight other carried items, so carry effects drop
-        // them - returning the names of any dropped.
+        // One-time effects (a permanent size change among them) would re-fire on every re-grant,
+        // and a purge would fight other carried items, so carry effects drop them - returning the
+        // names of any dropped. A plain size change lasts while the item is carried.
         private static List<string> AdaptForCarry(EffectContext ctx)
         {
-            ctx.SizeOffset = ctx.SizeChange;
-            ctx.SizeChange = 0f;
-
             List<string> stripped = [];
 
             void Drop(bool isSet, string field, Action clear)
@@ -218,6 +215,7 @@ namespace EffectLib
             );
             Drop(ctx.Respawn, "respawn", () => ctx.Respawn = false);
             Drop(ctx.Reshape, "reshape", () => ctx.Reshape = false);
+            Drop(ctx.SizePermanent, "sizePermanent", () => ctx.SizePermanent = false);
             Drop(ctx.ResetsEffects, "resetsEffects", () => ctx.ResetsEffects = false);
             Drop(ctx.Stacking != EnumEffectStacking.None, "stacking", () => ctx.Stacking = EnumEffectStacking.None);
 

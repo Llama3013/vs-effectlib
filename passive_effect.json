@@ -3,7 +3,7 @@
 // Everything is optional except effectId and activation. Comment out (//) the lines you don't want.
 // Carried effects last as long as the item stays in inventory or specified location - there is no duration (unless "oneShot" is set).
 // Not allowed here (ignored with a log warning): one-time actions (respawn, reshape, retainedNutrition,
-// temporalStabilityGain), resetsEffects, stacking, and health without tickSec. "oneShot" items allow all of these.
+// temporalStabilityGain, sizePermanent), resetsEffects, stacking, and health without tickSec. "oneShot" items allow all of these.
 
   "behaviors": [
     {
@@ -97,7 +97,8 @@
       "fallDamageReduction": 0.5,              // Cut fall damage, 0-1 (0.5 = half). Server config can fully disable this feature (AllowFall)
       "knockbackResistance": 0.5,              // Added to knockback resistance
       "weight": -20,                           // Kg added to body weight (I never really looked into what this actually does)
-      "sizeChange": 0.4                        // Grow (+) or shrink (-) height by N blocks while carried. With "oneShot" it lasts until death or a reset instead.
+      "sizeChange": 0.4                        // Grow (+) or shrink (-) height by N blocks while carried. With "oneShot" it works like a consumed effect instead:
+                                               // it wears off with "duration", or lasts until death or a reset on an instant effect or with "sizePermanent"
                                                // Server config can fully disable this feature (AllowResize)
     }
   }

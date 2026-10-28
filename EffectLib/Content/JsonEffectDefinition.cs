@@ -66,6 +66,7 @@ namespace EffectLib
             ctx.TemporalStabilityGain = def["temporalStabilityGain"].AsFloat();
             ctx.RetainedNutrition = def["retainedNutrition"].AsFloat();
             ctx.SizeChange = def["sizeChange"].AsFloat();
+            ctx.SizePermanent = def["sizePermanent"].AsBool();
             ctx.SizeMinHeight = def["sizeMinHeight"].AsFloat();
             ctx.SizeMaxHeight = def["sizeMaxHeight"].AsFloat();
             ctx.FallDamageReduction = def["fallDamageReduction"].AsFloat();

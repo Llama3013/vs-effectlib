@@ -60,6 +60,9 @@ namespace EffectLib
                 ctx => ctx.ClimbTouchDistance = ctx.PotencyMul),
             new("weight", EffectValueKind.Number, false, "Body weight, offset in kg", null,
                 ctx => ctx.Weight = ctx.PotencyMul),
+            new("size", EffectValueKind.Number, false,
+                "Grow or shrink the player, duration 0 = permanent", null,
+                ctx => ctx.SizeChange = ctx.PotencyMul),
 
             new("health", EffectValueKind.Number, true,
                 "Change health once, negative to damage", null,
@@ -70,8 +73,6 @@ namespace EffectLib
             new("temporalstability", EffectValueKind.Number, true,
                 "Add to temporal stability", null,
                 ctx => ctx.TemporalStabilityGain = ctx.PotencyMul),
-            new("size", EffectValueKind.Number, true, "Grow or shrink the player", null,
-                ctx => ctx.SizeChange = ctx.PotencyMul),
             new("respawn", EffectValueKind.Flag, true, "Teleport to spawn", null,
                 ctx => ctx.Respawn = true),
             new("reshape", EffectValueKind.Flag, true, "Reopen character customisation", null,

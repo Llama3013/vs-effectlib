@@ -57,11 +57,10 @@ namespace EffectLib
             if (Math.Abs(ctx.TemporalStabilityGain) > float.Epsilon)
                 yield return (Label("temporalstability"), Percent(ctx.TemporalStabilityGain));
 
-            float size = ctx.SizeChange + ctx.SizeOffset;
-            if (Math.Abs(size) > float.Epsilon)
+            if (Math.Abs(ctx.SizeChange) > float.Epsilon)
                 yield return (
-                    Label(size > 0 ? "grow" : "shrink"),
-                    Lang.Get("effectlib:size-blocks", size.ToString("+0.##;-0.##"))
+                    Label(ctx.SizeChange > 0 ? "grow" : "shrink"),
+                    Lang.Get("effectlib:size-blocks", ctx.SizeChange.ToString("+0.##;-0.##"))
                 );
         }
 

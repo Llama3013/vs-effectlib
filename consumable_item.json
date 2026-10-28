@@ -53,8 +53,10 @@
       "replaceIfActive": true,                 // Can reuse while effect is already active to restart it, even if the server turned global refreshing off
       "stacking": "intensity",                 // Re-using while active adds to the effect instead of restarting it. Server config can fully disable this feature (AllowStacking)
                                                // "intensity": each use adds a stack, and every value in "stats" is multiplied by the stack count
-                                               // (e.g. "walkspeed": 0.2 at 3 stacks = +60%). health, knockbackResistance, fallDamageReduction, weight,
-                                               // temporalStabilityGain and retainedNutrition multiply the same way. Abilities, glow, size (size already stacks) and duration don't
+                                               // (e.g. "walkspeed": 0.2 at 3 stacks = +60%). knockbackResistance, fallDamageReduction, weight, health with tickSec
+                                               // (per tick) and sizeChange (unless permanent) multiply the same way.
+                                               // Abilities, glow, duration and one-time actions (health without tickSec, temporalStabilityGain, retainedNutrition,
+                                               // a permanent sizeChange) don't
                                                // "duration": each use adds its duration to the time left instead. Stats and everything else stay the same
       "maxStacks": 5,                          // (intensity) Most stacks allowed. Default 5. Keep it low, it can get quite large quite quickly
       "stackDecay": "one",                     // (intensity) When the timer runs out: "all" (default) ends the effect, "one" drops one stack and restarts the timer
@@ -125,15 +127,20 @@
       "knockbackResistance": 0.5,              // Added to knockback resistance
       "weight": -20,                           // Kg added to body weight (I never really looked into what this actually does)
 
-      // ---- One-time actions (happen once when used) ----
-      "sizeChange": 0.4,                       // Grow (+) or shrink (-) height by N blocks. Lasts until death or a reset.
+      // ---- Size ----
+      "sizeChange": 0.4,                       // Grow (+) or shrink (-) height by N blocks for the effect's duration.
+                                               // On an instant effect (no duration) it lasts until death or a reset instead, adding up with every use
 
                                                // Server config can fully disable this feature (AllowResize)
+      "sizePermanent": true,                   // (default false) Keep the size change until death or a reset even though the effect has a duration.
+                                               // It adds up with every use, and "repeatSec" applies it again each time
       "sizeMinHeight": 0.8,                    // This effect can't shrink you below this height (blocks)
       "sizeMaxHeight": 2.5,                    // This effect can't grow you above this height (blocks). Server limits always apply. Best to leave these as default
 
                                                // by commentting them out but if you want players to not get too large or small via this alone item then its great to use
-      "retainedNutrition": 0.5,                // Pool all 5 food groups, keep this fraction, split it evenly between them
+
+      // ---- One-time actions (happen once when used) ----
+      "retainedNutrition": 0.5,               // Pool all 5 food groups, keep this fraction, split it evenly between them
       "temporalStabilityGain": 0.3,            // +0.3 = +30% temporal stability
       "respawn": true,                         // Teleport to your spawn point
       "blockRecallOnVessel": true,             // (default true) Can't teleport while in a boat. HIGHLY RECOMMENDED TO LEAVE THIS ALONE but you can change it if you want

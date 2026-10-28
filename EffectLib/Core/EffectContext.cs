@@ -68,12 +68,12 @@ namespace EffectLib
             float KnockbackResistance,
             float FallDamageReduction,
             float Weight,
-            float TemporalStabilityGain,
-            float RetainedNutrition
+            float SizeChange
         );
 
-        // Scales the numeric strength of the effect to n stacks of its unscaled values. Flags,
-        // glow, size, climb distance and duration are left alone.
+        // Scales what the effect holds while active to n stacks of its unscaled values. One-time
+        // actions (instant health, temporal stability, nutrition, a permanent size change) fire at
+        // the same strength on every use, and flags, glow, climb distance and duration are left alone.
         public void SetStacks(int n)
         {
             n = Math.Max(1, n);
@@ -83,19 +83,17 @@ namespace EffectLib
                 KnockbackResistance,
                 FallDamageReduction,
                 Weight,
-                TemporalStabilityGain,
-                RetainedNutrition
+                SizeChange
             );
 
             Stacks = n;
             foreach (KeyValuePair<string, float> stat in stackBase.Stats)
                 StatModifiers[stat.Key] = stat.Value * n;
-            Health = stackBase.Health * n;
+            Health = TickSec > 0 ? stackBase.Health * n : stackBase.Health;
             KnockbackResistance = stackBase.KnockbackResistance * n;
             FallDamageReduction = stackBase.FallDamageReduction * n;
             Weight = stackBase.Weight * n;
-            TemporalStabilityGain = stackBase.TemporalStabilityGain * n;
-            RetainedNutrition = stackBase.RetainedNutrition * n;
+            SizeChange = PermanentSize ? stackBase.SizeChange : stackBase.SizeChange * n;
         }
 
         public EnumDamageType? DamageType { get; set; }
@@ -111,7 +109,12 @@ namespace EffectLib
         public bool BlockRecallOnMount { get; set; }
         public bool BlockReshapeReentry { get; set; } = true;
         public float SizeChange { get; set; }
-        public float SizeOffset { get; set; }
+
+        // Keeps the size change until death or a reset instead of wearing off with the effect.
+        public bool SizePermanent { get; set; }
+
+        // An instant effect has no duration to time its size change by, so it always lasts.
+        public bool PermanentSize => SizePermanent || Duration == 0;
 
         public float SizeMinHeight { get; set; }
         public float SizeMaxHeight { get; set; }

@@ -19,7 +19,7 @@ namespace EffectLib
                 UtilityEffects.ApplyNutrition(entity, ctx.RetainedNutrition);
             if (Math.Abs(ctx.TemporalStabilityGain) > float.Epsilon)
                 UtilityEffects.ApplyTemporalStability(entity, ctx.TemporalStabilityGain);
-            if (Math.Abs(ctx.SizeChange) > float.Epsilon)
+            if (ctx.PermanentSize && Math.Abs(ctx.SizeChange) > float.Epsilon)
                 UtilityEffects.ApplySizeChange(entity, ctx, EffectRegistry.DomainOf(effectId));
         }
 
